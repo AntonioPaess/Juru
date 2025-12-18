@@ -24,9 +24,7 @@ struct ARViewContainer: UIViewRepresentable {
         ]
         arView.automaticallyConfigureSession = false
         arView.session.delegate = manager
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            manager.start(with: arView.session)
-        }
+        manager.start(with: arView.session)
         return arView
     }
     

@@ -11,10 +11,11 @@ import ARKit
 @MainActor
 @Observable
 class FaceTrackingManager: NSObject, @MainActor ARSessionDelegate {
+    private let movementThreshold: Double = 0.015
     private var isSessionRunning: Bool = false
     weak var currentSession: ARSession?
     var smileLeft: Double = 0.0
-    var smileRight: Double = 0.0
+    var mouthPucker: Double = 0.0
     var jawOpen: Double = 0.0
     
     func start(with session: ARSession) {
@@ -63,14 +64,20 @@ extension FaceTrackingManager {
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
         
-        let leftValue = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
-        let puckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
-        let jawValue = anchor.blendShapes[.jawOpen]?.doubleValue ?? 0.0
+        let newSmileLeft = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
+        let newPuckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
+        let newJawValue = anchor.blendShapes[.jawOpen]?.doubleValue ?? 0.0
         
         Task { @MainActor in
-            self.smileLeft = leftValue
-            self.smileRight = puckerValue
-            self.jawOpen = jawValue
+            if abs(self.smileLeft - newSmileLeft) > movementThreshold {
+                self.smileLeft = newSmileLeft
+            }
+            if abs(self.mouthPucker - newPuckerValue) > movementThreshold {
+                self.mouthPucker = newPuckerValue
+            }
+            if abs(self.jawOpen - newJawValue) > movementThreshold {
+                self.jawOpen = newJawValue
+            }
         }
     }
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
