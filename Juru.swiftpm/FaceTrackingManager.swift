@@ -10,13 +10,13 @@ import ARKit
 
 @MainActor
 @Observable
-class FaceTrackingManager: NSObject, @MainActor ARSessionDelegate {
-    private let movementThreshold: Double = 0.015
+class FaceTrackingManager: NSObject, ARSessionDelegate {
     private var isSessionRunning: Bool = false
+    private var isConfirming: Bool = false
     weak var currentSession: ARSession?
     var smileLeft: Double = 0.0
+    var smileRight: Double = 0.0
     var mouthPucker: Double = 0.0
-    var jawOpen: Double = 0.0
     
     func start(with session: ARSession) {
         if isSessionRunning { return }
@@ -63,24 +63,40 @@ class FaceTrackingManager: NSObject, @MainActor ARSessionDelegate {
 extension FaceTrackingManager {
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
-        
-        let newSmileLeft = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
-        let newPuckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
-        let newJawValue = anchor.blendShapes[.jawOpen]?.doubleValue ?? 0.0
+        let smileLeftValue = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
+        let smileRightValue = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
+        let puckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
         
         Task { @MainActor in
-            if abs(self.smileLeft - newSmileLeft) > movementThreshold {
-                self.smileLeft = newSmileLeft
+            let deadZone = 0.02
+            let dominanceMargin = 0.1
+            let puckerThreshold = 0.4
+            
+            if smileLeftValue > deadZone && smileLeftValue > (smileRightValue + dominanceMargin) {
+                self.smileRight = smileLeftValue
+                self.smileLeft = 0.0
             }
-            if abs(self.mouthPucker - newPuckerValue) > movementThreshold {
-                self.mouthPucker = newPuckerValue
+            else if smileRightValue > deadZone && smileRightValue > (smileLeftValue + dominanceMargin) {
+                self.smileLeft = smileRightValue
+                self.smileRight = 0.0
             }
-            if abs(self.jawOpen - newJawValue) > movementThreshold {
-                self.jawOpen = newJawValue
+            else {
+                self.smileLeft = 0.0
+                self.smileRight = 0.0
+            }
+            
+            if puckerValue > puckerThreshold {
+                self.mouthPucker = puckerValue
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.impactOccurred()
+            } else {
+                self.mouthPucker = 0.0
             }
         }
     }
-    nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
-        print("ARKit Erro: \(error.localizedDescription)")
-    }
 }
+
+nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
+    print("ARKit Erro: \(error.localizedDescription)")
+}
+

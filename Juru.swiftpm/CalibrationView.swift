@@ -20,9 +20,9 @@ struct CalibrationView: View {
                 VStack(spacing: 12) {
                     ProgressView(value: manager.smileLeft, total: 1.0)
                         .tint(.cyan)
-                    ProgressView(value: manager.mouthPucker, total: 1.0)
+                    ProgressView(value: manager.smileRight, total: 1.0)
                         .tint(.red)
-                    ProgressView(value: manager.jawOpen, total: 1.0)
+                    ProgressView(value: manager.mouthPucker, total: 1.0)
                         .tint(.green)
                 }
                 .padding()
