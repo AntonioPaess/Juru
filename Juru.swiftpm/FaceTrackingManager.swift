@@ -7,26 +7,27 @@
 
 import Foundation
 import ARKit
+import UIKit
 
 @MainActor
 @Observable
 class FaceTrackingManager: NSObject, ARSessionDelegate {
     private var isSessionRunning: Bool = false
-    private var isConfirming: Bool = false
     weak var currentSession: ARSession?
     var smileLeft: Double = 0.0
     var smileRight: Double = 0.0
     var mouthPucker: Double = 0.0
+    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+    private var isPuckering: Bool = false
+    private var lastUpdateTime: TimeInterval = 0
     
     func start(with session: ARSession) {
         if isSessionRunning { return }
         self.currentSession = session
         
-        
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             runSession()
-            
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 if granted {
@@ -35,7 +36,6 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
                     }
                 }
             }
-            
         default:
             print("Permission Denied or restricted")
         }
@@ -46,11 +46,19 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         
         let configuration = ARFaceTrackingConfiguration()
         configuration.isLightEstimationEnabled = true
+        if let videoFormat = ARFaceTrackingConfiguration.supportedVideoFormats.first(where: { $0.framesPerSecond == 60 }) {
+            configuration.videoFormat = videoFormat
+            print("Travando ARSession em: \(videoFormat.framesPerSecond) FPS")
+        } else {
+            print("Aviso: Formato 60FPS não encontrado, usando padrão.")
+        }
+        
         isSessionRunning = true
+        feedbackGenerator.prepare()
         
         currentSession?.run(
             configuration,
-            options: [.removeExistingAnchors]
+            options: [.removeExistingAnchors, .resetTracking]
         )
     }
     
@@ -63,15 +71,21 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
 extension FaceTrackingManager {
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
-        let smileLeftValue = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
-        let smileRightValue = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
-        let puckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
+        let currentTime = ProcessInfo.processInfo.systemUptime
         
         Task { @MainActor in
+            guard currentTime - self.lastUpdateTime > 0.05 else { return }
+            self.lastUpdateTime = currentTime
+            
+            let smileLeftValue = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
+            let smileRightValue = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
+            let puckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
+            
             let deadZone = 0.02
             let dominanceMargin = 0.1
             let puckerThreshold = 0.4
             
+            // Lógica do Sorriso
             if smileLeftValue > deadZone && smileLeftValue > (smileRightValue + dominanceMargin) {
                 self.smileRight = smileLeftValue
                 self.smileLeft = 0.0
@@ -87,10 +101,13 @@ extension FaceTrackingManager {
             
             if puckerValue > puckerThreshold {
                 self.mouthPucker = puckerValue
-                let generator = UIImpactFeedbackGenerator(style: .light)
-                generator.impactOccurred()
+                if !self.isPuckering {
+                    self.feedbackGenerator.impactOccurred()
+                    self.isPuckering = true
+                }
             } else {
                 self.mouthPucker = 0.0
+                self.isPuckering = false
             }
         }
     }
@@ -99,4 +116,3 @@ extension FaceTrackingManager {
 nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
     print("ARKit Erro: \(error.localizedDescription)")
 }
-

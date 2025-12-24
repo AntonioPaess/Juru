@@ -15,6 +15,7 @@ struct ARViewContainer: UIViewRepresentable {
     
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
+        
         arView.renderOptions = [
             .disableMotionBlur,
             .disableDepthOfField,
