@@ -14,9 +14,11 @@ import UIKit
 class FaceTrackingManager: NSObject, ARSessionDelegate {
     private var isSessionRunning: Bool = false
     weak var currentSession: ARSession?
+    
     var smileLeft: Double = 0.0
     var smileRight: Double = 0.0
     var mouthPucker: Double = 0.0
+    
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     private var isPuckering: Bool = false
     private var lastUpdateTime: TimeInterval = 0
@@ -46,20 +48,14 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         
         let configuration = ARFaceTrackingConfiguration()
         configuration.isLightEstimationEnabled = true
-        if let videoFormat = ARFaceTrackingConfiguration.supportedVideoFormats.first(where: { $0.framesPerSecond == 60 }) {
-            configuration.videoFormat = videoFormat
-            print("Travando ARSession em: \(videoFormat.framesPerSecond) FPS")
-        } else {
-            print("Aviso: Formato 60FPS não encontrado, usando padrão.")
-        }
-        
-        isSessionRunning = true
-        feedbackGenerator.prepare()
         
         currentSession?.run(
             configuration,
             options: [.removeExistingAnchors, .resetTracking]
         )
+        
+        isSessionRunning = true
+        feedbackGenerator.prepare()
     }
     
     func stop() {
@@ -71,6 +67,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
 extension FaceTrackingManager {
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
+    
         let currentTime = ProcessInfo.processInfo.systemUptime
         
         Task { @MainActor in
@@ -85,7 +82,6 @@ extension FaceTrackingManager {
             let dominanceMargin = 0.1
             let puckerThreshold = 0.4
             
-            // Lógica do Sorriso
             if smileLeftValue > deadZone && smileLeftValue > (smileRightValue + dominanceMargin) {
                 self.smileRight = smileLeftValue
                 self.smileLeft = 0.0
@@ -111,8 +107,8 @@ extension FaceTrackingManager {
             }
         }
     }
-}
-
-nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
-    print("ARKit Erro: \(error.localizedDescription)")
+    
+    nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
+        print("ARKit Error: \(error.localizedDescription)")
+    }
 }

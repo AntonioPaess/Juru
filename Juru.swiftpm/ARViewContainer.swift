@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Foundation
 import RealityKit
 import ARKit
 
@@ -21,16 +20,17 @@ struct ARViewContainer: UIViewRepresentable {
             .disableDepthOfField,
             .disableHDR,
             .disableFaceMesh,
-            .disablePersonOcclusion 
+            .disablePersonOcclusion
         ]
+        
         arView.automaticallyConfigureSession = false
         arView.session.delegate = manager
         manager.start(with: arView.session)
+        
         return arView
     }
     
-    func updateUIView(_ uiView: ARView, context: Context) {
-    }
+    func updateUIView(_ uiView: ARView, context: Context) {}
 }
 
 #Preview {
