@@ -23,4 +23,32 @@ class Trie {
         }
         currentNode.isTerminating = true
     }
+    
+    func finddWords(startingWith prefix: String) -> [String] {
+        var currentNode = root
+        let charactares = Array(prefix.lowercased())
+        for character in charactares {
+            if let node = currentNode.children[character] {
+                currentNode = node
+            } else {
+                return []
+            }
+        }
+        return collectWords(from: currentNode, prefix: prefix)
+    }
+}
+
+extension Trie {
+    private func collectWords(from node: TrieNode, prefix: String) -> [String] {
+        var wordsArray = Array<String>()
+        if node.isTerminating {
+            wordsArray.append(prefix)
+        }
+        for (char, childNode) in node.children {
+            let newPrefix = prefix + String(char)
+            let childWord = collectWords(from: childNode, prefix: newPrefix)
+            wordsArray.append(contentsOf: childWord)
+        }
+        return wordsArray
+    }
 }
