@@ -7,7 +7,6 @@
 
 import Foundation
 import ARKit
-import UIKit
 
 @MainActor
 @Observable
@@ -115,5 +114,19 @@ extension FaceTrackingManager {
     
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
         print("ARKit Error: \(error.localizedDescription)")
+    }
+    
+    nonisolated func sessionWasInterrupted(_ session: ARSession) {
+        Task { @MainActor in
+            self.mouthPucker = 0
+            self.smileLeft = 0
+            self.smileRight = 0
+            self.isPuckering = false
+        }
+    }
+    nonisolated func sessionInterruptionEnded(_ session: ARSession) {
+        Task { @MainActor in
+            self.runSession()
+        }
     }
 }
