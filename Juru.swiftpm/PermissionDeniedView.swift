@@ -14,16 +14,16 @@ struct PermissionDeniedView: View {
                 .font(.system(size: 60))
                 .foregroundStyle(.gray)
             
-            Text("Acesso à Câmera Necessário")
+            Text("Camera Access Required")
                 .font(.title2)
                 .bold()
             
-            Text("O Juru precisa ver seus gestos faciais para funcionar. Por favor, habilite o acesso nos Ajustes.")
+            Text("Juru needs to see your facial gestures to work. Please enable access in Settings.")
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
                 .foregroundStyle(.secondary)
             
-            Button("Abrir Ajustes") {
+            Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
