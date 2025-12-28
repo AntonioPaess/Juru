@@ -21,7 +21,7 @@ class TrieNode {
         self.parent = parent
     }
     
-    // Helper - Add or Create Node
+    // MARK: Add or Create Node
     
     func add(child: Character) -> TrieNode {
         if let node = children[child] {

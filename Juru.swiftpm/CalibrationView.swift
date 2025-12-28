@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct CalibrationView: View {
-    @Environment(FaceTrackingManager.self) var manager
+    var manager: FaceTrackingManager
     @Environment(\.scenePhase) var scenePhase
     
     var body: some View {
@@ -46,5 +46,5 @@ struct CalibrationView: View {
 }
 
 #Preview {
-    CalibrationView()
+    CalibrationView(manager: FaceTrackingManager())
 }
