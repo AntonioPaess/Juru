@@ -105,12 +105,31 @@ class VocabularyManager {
         switch action {
         case .select:
             print("CONFIRMADO: Selecionar")
-            
+            handleSelection()
         case .navigate:
             print("CONFIRMADO: Navegar/Próximo")
+            handleNavigation()
             
         case .delete:
             print("CONFIRMADO: Apagar/Voltar")
+            handleDelete()
         }
+    }
+    
+    // MARK: - Actions Implementation
+    
+    private func handleSelection() {
+        print("AÇÃO: Selecionar (Lógica virá na Sprint de UI)")
+        // Exemplo futuro: currentMessage.append("A")
+    }
+    
+    private func handleNavigation() {
+        print("AÇÃO: Navegar (Lógica virá na Sprint de UI)")
+        // Exemplo futuro: navigationState = .vowels
+    }
+    
+    private func handleDelete() {
+        print("AÇÃO: Apagar (Lógica virá na Sprint de UI)")
+        // Exemplo futuro: currentMessage.removeLast()
     }
 }

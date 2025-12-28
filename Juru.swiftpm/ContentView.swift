@@ -20,3 +20,12 @@ struct ContentView: View {
         .onChange(of: faceManager.mouthPucker) { vocabManager.update() }
     }
 }
+
+#Preview {
+    let face = FaceTrackingManager()
+    let vocab = VocabularyManager(faceManager: face)
+    
+    return ContentView()
+        .environment(face)
+        .environment(vocab)
+}

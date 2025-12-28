@@ -6,7 +6,6 @@ struct MyApp: App {
     @State private var vocabularyManager: VocabularyManager?
     var body: some Scene {
         WindowGroup {
-            ContentView()
             if let vocabManager = vocabularyManager {
                 ContentView()
                     .environment(faceManager)
