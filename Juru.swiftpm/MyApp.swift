@@ -11,7 +11,7 @@ struct MyApp: App {
                     .environment(faceManager)
                     .environment(vocabManager)
             } else {
-                ProgressView("Starting Juru...")
+                JuruLoadingView()
                     .onAppear {
                         vocabularyManager = VocabularyManager(faceManager: faceManager)
                     }
