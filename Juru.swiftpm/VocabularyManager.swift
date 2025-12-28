@@ -36,14 +36,17 @@ class VocabularyManager {
     // MARK: - Setup
     private func setupDictionary() {
         let initialWords = [
-            "amor",
-            "agora",
-            "aqui",
-            "bola",
-            "casa",
-            "comida",
-            "dado",
-            "dia"
+            "love",
+            "now",
+            "here",
+            "ball",
+            "home",
+            "food",
+            "day",
+            "hello",
+            "help",
+            "yes",
+            "no"
         ]
         
         for word in initialWords {
@@ -51,7 +54,7 @@ class VocabularyManager {
         }
     }
     
-    // MARK: - Logic (O Loop de Decisão)
+    // MARK: - Logic (Decision Loop)
     
     func update() {
         if selectionTask != nil {
@@ -72,8 +75,8 @@ class VocabularyManager {
     
     private func isGestureActive() -> Bool {
         return faceManager.smileRight > 0.5 ||
-        faceManager.smileLeft > 0.5 ||
-        faceManager.mouthPucker > 0.5
+               faceManager.smileLeft > 0.5 ||
+               faceManager.mouthPucker > 0.5
     }
     
     // MARK: - Timer Logic
@@ -96,7 +99,7 @@ class VocabularyManager {
     private func cancelTimer() {
         selectionTask?.cancel()
         selectionTask = nil
-        print("Gesto cancelado")
+        print("Gesture cancelled")
     }
     
     // MARK: - Execution
@@ -104,14 +107,15 @@ class VocabularyManager {
     private func execute(_ action: ActionType) {
         switch action {
         case .select:
-            print("CONFIRMADO: Selecionar")
+            print("CONFIRMED: Select")
             handleSelection()
+            
         case .navigate:
-            print("CONFIRMADO: Navegar/Próximo")
+            print("CONFIRMED: Navigate/Next")
             handleNavigation()
             
         case .delete:
-            print("CONFIRMADO: Apagar/Voltar")
+            print("CONFIRMED: Delete/Back")
             handleDelete()
         }
     }
@@ -119,17 +123,14 @@ class VocabularyManager {
     // MARK: - Actions Implementation
     
     private func handleSelection() {
-        print("AÇÃO: Selecionar (Lógica virá na Sprint de UI)")
-        // Exemplo futuro: currentMessage.append("A")
+        print("ACTION: Select")
     }
     
     private func handleNavigation() {
-        print("AÇÃO: Navegar (Lógica virá na Sprint de UI)")
-        // Exemplo futuro: navigationState = .vowels
+        print("ACTION: Navigate")
     }
     
     private func handleDelete() {
-        print("AÇÃO: Apagar (Lógica virá na Sprint de UI)")
-        // Exemplo futuro: currentMessage.removeLast()
+        print("ACTION: Delete")
     }
 }
