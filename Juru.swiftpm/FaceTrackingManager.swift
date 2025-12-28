@@ -13,6 +13,7 @@ import UIKit
 @Observable
 class FaceTrackingManager: NSObject, ARSessionDelegate {
     private var isSessionRunning: Bool = false
+    var isCameraDenied: Bool = false
     weak var currentSession: ARSession?
     
     var smileLeft: Double = 0.0
@@ -32,14 +33,18 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
             runSession()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                if granted {
-                    Task { @MainActor in
+                Task { @MainActor in
+                    if granted {
                         self?.runSession()
+                    } else {
+                        self?.isCameraDenied = true
                     }
                 }
             }
-        default:
-            print("Permission Denied or restricted")
+        case .denied, .restricted:
+            isCameraDenied = true
+        @unknown default:
+            print("Unknown permission status")
         }
     }
     
@@ -47,7 +52,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         guard ARFaceTrackingConfiguration.isSupported else { return }
         
         let configuration = ARFaceTrackingConfiguration()
-        configuration.isLightEstimationEnabled = true
+        configuration.isLightEstimationEnabled = false
         
         currentSession?.run(
             configuration,
@@ -67,7 +72,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
 extension FaceTrackingManager {
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
-    
+        
         let currentTime = ProcessInfo.processInfo.systemUptime
         
         Task { @MainActor in

@@ -13,22 +13,26 @@ struct CalibrationView: View {
     
     var body: some View {
         ZStack {
-            ARViewContainer(manager: manager)
-                .edgesIgnoringSafeArea(.all)
-            VStack {
-                Spacer()
-                VStack(spacing: 12) {
-                    ProgressView(value: manager.smileLeft, total: 1.0)
-                        .tint(.cyan)
-                    ProgressView(value: manager.smileRight, total: 1.0)
-                        .tint(.red)
-                    ProgressView(value: manager.mouthPucker, total: 1.0)
-                        .tint(.green)
+            if manager.isCameraDenied {
+                PermissionDeniedView()
+            } else {
+                ARViewContainer(manager: manager)
+                    .edgesIgnoringSafeArea(.all)
+                VStack {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        ProgressView(value: manager.smileLeft, total: 1.0)
+                            .tint(.cyan)
+                        ProgressView(value: manager.smileRight, total: 1.0)
+                            .tint(.red)
+                        ProgressView(value: manager.mouthPucker, total: 1.0)
+                            .tint(.green)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(20)
+                    .padding()
                 }
-                .padding()
-                .background(.ultraThinMaterial)
-                .cornerRadius(20)
-                .padding()
             }
         }.onChange(of: scenePhase) { old, new in
             if new == .background { manager.stop() }
