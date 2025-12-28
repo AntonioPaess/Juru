@@ -24,7 +24,7 @@ class Trie {
         currentNode.isTerminating = true
     }
     
-    func finddWords(startingWith prefix: String) -> [String] {
+    func findWords(startingWith prefix: String) -> [String] {
         var currentNode = root
         let charactares = Array(prefix.lowercased())
         for character in charactares {

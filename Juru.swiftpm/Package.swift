@@ -16,7 +16,7 @@ let package = Package(
         .iOSApplication(
             name: "Juru",
             targets: ["AppModule"],
-            bundleIdentifier: "com.Juru",
+            bundleIdentifier: "com.antoniopaes.Juru",
             teamIdentifier: "9QV8HG6WSY",
             displayVersion: "1.0",
             bundleVersion: "1",

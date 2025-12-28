@@ -5,27 +5,17 @@ struct ContentView: View {
     @Environment(VocabularyManager.self) var vocabManager
     
     var body: some View {
-        ZStack {
-            CalibrationView(manager: faceManager)
-            VStack {
-                Text("Message: \(vocabManager.currentMessage)")
-                    .font(.largeTitle)
-                    .padding()
-                    .background(.ultraThinMaterial)
-                Spacer()
-            }
-        }
-        .onChange(of: faceManager.smileRight) { vocabManager.update() }
-        .onChange(of: faceManager.smileLeft) { vocabManager.update() }
-        .onChange(of: faceManager.mouthPucker) { vocabManager.update() }
+        // Simplesmente chama a View Principal que cuida de tudo
+        MainTypingView(
+            vocabManager: vocabManager,
+            faceManager: faceManager
+        )
     }
 }
 
 #Preview {
-    let face = FaceTrackingManager()
-    let vocab = VocabularyManager(faceManager: face)
-    
-    return ContentView()
-        .environment(face)
-        .environment(vocab)
+    let faceManager = FaceTrackingManager()
+    ContentView()
+        .environment(VocabularyManager(faceManager: faceManager))
+        .environment(faceManager)
 }
