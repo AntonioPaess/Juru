@@ -2,86 +2,153 @@
 //  FaceTrackingManager.swift
 //  Juru
 //
-//  Created by Antônio Paes De Andrade on 14/12/25.
+//  Created by Antônio Paes De Andrade on 28/12/25.
 //
 
-import Foundation
-import ARKit
+@preconcurrency import ARKit
+import SwiftUI
+import Observation
+
+enum InputMode: String, CaseIterable {
+    case faceMuscles = "Face Muscles"
+    case headMovement = "Head Movement"
+    case eyeBlink = "Eye Blink"
+    case eyeGaze = "Eye Gaze"
+}
+
+struct UserCalibration {
+    var smileLeftMax: Double = 0.5
+    var smileRightMax: Double = 0.5
+    var puckerMax: Double = 0.5
+    var triggerFactor: Double = 0.6
+}
 
 @MainActor
 @Observable
 class FaceTrackingManager: NSObject, ARSessionDelegate {
-    private var isSessionRunning: Bool = false
-    var isCameraDenied: Bool = false
-    weak var currentSession: ARSession?
-    
+    // MARK: - Dados
     var smileLeft: Double = 0.0
     var smileRight: Double = 0.0
     var mouthPucker: Double = 0.0
     
-    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
-    private var isPuckering: Bool = false
-    private var lastUpdateTime: TimeInterval = 0
+    var headYaw: Double = 0.0
+    var headPitch: Double = 0.0
+    var blinkLeft: Double = 0.0
+    var blinkRight: Double = 0.0
+    var eyeYaw: Double = 0.0
+    var eyePitch: Double = 0.0
+
+    // Configuração
+    var currentInputMode: InputMode = .faceMuscles
+    var sensitivity: Double = 0.5
+    var isCameraDenied = false
+    var calibration = UserCalibration()
     
-    func start(with session: ARSession) {
-        if isSessionRunning { return }
+    // ⚠️ CORREÇÃO 1: Referência fraca à sessão (quem manda é a View)
+    weak var currentSession: ARSession?
+    
+    // Internals
+    let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+    var isPuckering = false
+    var lastUpdateTime: TimeInterval = 0
+    
+    // ⚠️ CORREÇÃO 2: start() agora recebe a sessão da ARView
+    func start(session: ARSession) {
+        // Guarda a referência
         self.currentSession = session
         
+        // Verifica permissão
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            runSession()
+            runSession(session)
         case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+            AVCaptureDevice.requestAccess(for: .video) { granted in
                 Task { @MainActor in
-                    if granted {
-                        self?.runSession()
-                    } else {
-                        self?.isCameraDenied = true
-                    }
+                    if granted { self.runSession(session) }
+                    else { self.isCameraDenied = true }
                 }
             }
         case .denied, .restricted:
             isCameraDenied = true
         @unknown default:
-            print("Unknown permission status")
+            break
         }
     }
     
-    private func runSession() {
+    private func runSession(_ session: ARSession) {
         guard ARFaceTrackingConfiguration.isSupported else { return }
+        
+        // Configura o delegate para recebermos os dados
+        session.delegate = self
         
         let configuration = ARFaceTrackingConfiguration()
         configuration.isLightEstimationEnabled = false
         
-        currentSession?.run(
-            configuration,
-            options: [.removeExistingAnchors, .resetTracking]
-        )
-        
-        isSessionRunning = true
+        // Inicia a sessão da View
+        session.run(configuration, options: [.removeExistingAnchors, .resetTracking])
         feedbackGenerator.prepare()
     }
     
-    func stop() {
+    func pause() {
         currentSession?.pause()
-        isSessionRunning = false
     }
-}
-
-extension FaceTrackingManager {
+    
+    // MARK: - Gatilhos
+    var isTriggeringLeft: Bool {
+        let threshold = calibration.smileLeftMax * calibration.triggerFactor
+        switch currentInputMode {
+        case .faceMuscles: return smileLeft > threshold
+        case .headMovement: return headYaw > 0.1
+        case .eyeBlink: return blinkLeft > 0.5 && blinkRight < 0.2
+        case .eyeGaze: return eyeYaw < -0.2
+        }
+    }
+    
+    var isTriggeringRight: Bool {
+        let threshold = calibration.smileRightMax * calibration.triggerFactor
+        switch currentInputMode {
+        case .faceMuscles: return smileRight > threshold
+        case .headMovement: return headYaw < -0.1
+        case .eyeBlink: return blinkRight > 0.5 && blinkLeft < 0.2
+        case .eyeGaze: return eyeYaw > 0.2
+        }
+    }
+    
+    var isTriggeringBack: Bool {
+        let threshold = calibration.puckerMax * calibration.triggerFactor
+        switch currentInputMode {
+        case .faceMuscles: return mouthPucker > threshold
+        case .headMovement: return headPitch > 0.1
+        case .eyeBlink: return blinkLeft > 0.5 && blinkRight > 0.5
+        case .eyeGaze: return eyePitch > 0.2
+        }
+    }
+    
+    func setCalibrationMax(for gesture: String, value: Float) {
+        let val = Double(value)
+        switch gesture {
+        case "smileLeft": calibration.smileLeftMax = max(val, 0.1)
+        case "smileRight": calibration.smileRightMax = max(val, 0.1)
+        case "pucker": calibration.puckerMax = max(val, 0.1)
+        default: break
+        }
+    }
+    
+    // MARK: - ARSessionDelegate
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
-        
         let currentTime = ProcessInfo.processInfo.systemUptime
         
         Task { @MainActor in
             guard currentTime - self.lastUpdateTime > 0.05 else { return }
             self.lastUpdateTime = currentTime
             
+            // Dados
             let smileLeftValue = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
             let smileRightValue = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
             let puckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
             
+            // Lógica Espelhada
             let deadZone = 0.02
             let dominanceMargin = 0.1
             let puckerThreshold = 0.4
@@ -109,24 +176,18 @@ extension FaceTrackingManager {
                 self.mouthPucker = 0.0
                 self.isPuckering = false
             }
+            
+            // Outros
+            self.blinkLeft = anchor.blendShapes[.eyeBlinkLeft]?.doubleValue ?? 0.0
+            self.blinkRight = anchor.blendShapes[.eyeBlinkRight]?.doubleValue ?? 0.0
+            self.headYaw = Double(atan2(anchor.transform.columns.2.x, anchor.transform.columns.2.z))
+            self.headPitch = Double(asin(anchor.transform.columns.2.y))
+            self.eyeYaw = Double(anchor.lookAtPoint.x)
+            self.eyePitch = Double(anchor.lookAtPoint.y)
         }
     }
     
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
         print("ARKit Error: \(error.localizedDescription)")
-    }
-    
-    nonisolated func sessionWasInterrupted(_ session: ARSession) {
-        Task { @MainActor in
-            self.mouthPucker = 0
-            self.smileLeft = 0
-            self.smileRight = 0
-            self.isPuckering = false
-        }
-    }
-    nonisolated func sessionInterruptionEnded(_ session: ARSession) {
-        Task { @MainActor in
-            self.runSession()
-        }
     }
 }

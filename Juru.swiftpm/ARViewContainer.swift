@@ -13,6 +13,7 @@ struct ARViewContainer: UIViewRepresentable {
     var manager: FaceTrackingManager
     
     func makeUIView(context: Context) -> ARView {
+        // Cria a View (ela cria sua própria sessão automaticamente)
         let arView = ARView(frame: .zero)
         
         arView.renderOptions = [
@@ -24,8 +25,7 @@ struct ARViewContainer: UIViewRepresentable {
         ]
         
         arView.automaticallyConfigureSession = false
-        arView.session.delegate = manager
-        manager.start(with: arView.session)
+        manager.start(session: arView.session)
         
         return arView
     }

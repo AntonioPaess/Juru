@@ -8,13 +8,14 @@
 import SwiftUI
 
 struct MainTypingView: View {
+    // Injeção Explícita (Seu Padrão)
     var vocabManager: VocabularyManager
     var faceManager: FaceTrackingManager
     
     var body: some View {
         ZStack {
-            // 1. Camada de Fundo (Câmera + Overlay)
-            CalibrationView(manager: faceManager)
+            // 1. FUNDO: Apenas a Câmera Limpa (Sem textos de calibração)
+            ARViewContainer(manager: faceManager)
                 .ignoresSafeArea()
                 .overlay(
                     LinearGradient(
@@ -24,7 +25,7 @@ struct MainTypingView: View {
                     )
                 )
             
-            // 2. Camada de Interface
+            // 2. INTERFACE
             VStack(spacing: 0) {
                 // --- ÁREA DE TEXTO (Topo) ---
                 VStack(alignment: .leading) {
@@ -34,7 +35,6 @@ struct MainTypingView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .animation(.default, value: vocabManager.currentMessage)
                     
-                    // Cursor piscante simulado
                     if !vocabManager.currentMessage.isEmpty {
                         Rectangle()
                             .fill(Color.pink)
@@ -49,11 +49,9 @@ struct MainTypingView: View {
                         .stroke(.white.opacity(0.1), lineWidth: 1)
                 )
                 .padding(.horizontal, 20)
-                .padding(.top, 60) // Margem segura superior
+                .padding(.top, 60)
                 
-                // --- SUGESTÕES VISUAIS (Abaixo do texto) ---
-                // Mostra as sugestões apenas como "Preview",
-                // pois agora acessamos elas via Bola Direita -> Suggestions
+                // --- SUGESTÕES ---
                 if !vocabManager.suggestions.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
@@ -75,15 +73,18 @@ struct MainTypingView: View {
                 
                 Spacer()
                 
-                // --- AS BOLAS DE NAVEGAÇÃO ---
+                // --- TECLADO NEON ---
                 KeyboardView(vocabManager: vocabManager)
                     .padding(.bottom, 40)
             }
         }
-        // Conexão Lógica
+        // Conexão Lógica: Ouve o FaceManager e atualiza o VocabManager
         .onChange(of: faceManager.smileRight) { vocabManager.update() }
         .onChange(of: faceManager.smileLeft) { vocabManager.update() }
         .onChange(of: faceManager.mouthPucker) { vocabManager.update() }
+        // Adicione também os novos gatilhos se for usar Cabeça/Olhos na MainView
+        .onChange(of: faceManager.headYaw) { vocabManager.update() }
+        .onChange(of: faceManager.eyeYaw) { vocabManager.update() }
     }
 }
 

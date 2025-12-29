@@ -5,7 +5,6 @@ struct ContentView: View {
     @Environment(VocabularyManager.self) var vocabManager
     
     var body: some View {
-        // Simplesmente chama a View Principal que cuida de tudo
         MainTypingView(
             vocabManager: vocabManager,
             faceManager: faceManager
@@ -13,9 +12,3 @@ struct ContentView: View {
     }
 }
 
-#Preview {
-    let faceManager = FaceTrackingManager()
-    ContentView()
-        .environment(VocabularyManager(faceManager: faceManager))
-        .environment(faceManager)
-}
