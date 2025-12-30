@@ -38,26 +38,20 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     var eyeYaw: Double = 0.0
     var eyePitch: Double = 0.0
 
-    // Configuração
     var currentInputMode: InputMode = .faceMuscles
     var sensitivity: Double = 0.5
     var isCameraDenied = false
     var calibration = UserCalibration()
     
-    // ⚠️ CORREÇÃO 1: Referência fraca à sessão (quem manda é a View)
     weak var currentSession: ARSession?
     
-    // Internals
     let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     var isPuckering = false
     var lastUpdateTime: TimeInterval = 0
     
-    // ⚠️ CORREÇÃO 2: start() agora recebe a sessão da ARView
     func start(session: ARSession) {
-        // Guarda a referência
         self.currentSession = session
         
-        // Verifica permissão
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             runSession(session)
@@ -78,13 +72,11 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     private func runSession(_ session: ARSession) {
         guard ARFaceTrackingConfiguration.isSupported else { return }
         
-        // Configura o delegate para recebermos os dados
         session.delegate = self
         
         let configuration = ARFaceTrackingConfiguration()
         configuration.isLightEstimationEnabled = false
         
-        // Inicia a sessão da View
         session.run(configuration, options: [.removeExistingAnchors, .resetTracking])
         feedbackGenerator.prepare()
     }
@@ -143,12 +135,10 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
             guard currentTime - self.lastUpdateTime > 0.05 else { return }
             self.lastUpdateTime = currentTime
             
-            // Dados
             let smileLeftValue = anchor.blendShapes[.mouthSmileLeft]?.doubleValue ?? 0.0
             let smileRightValue = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
             let puckerValue = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
             
-            // Lógica Espelhada
             let deadZone = 0.02
             let dominanceMargin = 0.1
             let puckerThreshold = 0.4
@@ -177,7 +167,6 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
                 self.isPuckering = false
             }
             
-            // Outros
             self.blinkLeft = anchor.blendShapes[.eyeBlinkLeft]?.doubleValue ?? 0.0
             self.blinkRight = anchor.blendShapes[.eyeBlinkRight]?.doubleValue ?? 0.0
             self.headYaw = Double(atan2(anchor.transform.columns.2.x, anchor.transform.columns.2.z))

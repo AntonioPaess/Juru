@@ -8,13 +8,11 @@
 import SwiftUI
 
 struct MainTypingView: View {
-    // Injeção Explícita (Seu Padrão)
     var vocabManager: VocabularyManager
     var faceManager: FaceTrackingManager
     
     var body: some View {
         ZStack {
-            // 1. FUNDO: Apenas a Câmera Limpa (Sem textos de calibração)
             ARViewContainer(manager: faceManager)
                 .ignoresSafeArea()
                 .overlay(
@@ -25,9 +23,7 @@ struct MainTypingView: View {
                     )
                 )
             
-            // 2. INTERFACE
             VStack(spacing: 0) {
-                // --- ÁREA DE TEXTO (Topo) ---
                 VStack(alignment: .leading) {
                     Text(vocabManager.currentMessage.isEmpty ? "Smile left to start..." : vocabManager.currentMessage)
                         .font(.system(size: 36, weight: .bold, design: .rounded))
@@ -51,7 +47,6 @@ struct MainTypingView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 60)
                 
-                // --- SUGESTÕES ---
                 if !vocabManager.suggestions.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
@@ -73,16 +68,13 @@ struct MainTypingView: View {
                 
                 Spacer()
                 
-                // --- TECLADO NEON ---
                 KeyboardView(vocabManager: vocabManager)
                     .padding(.bottom, 40)
             }
         }
-        // Conexão Lógica: Ouve o FaceManager e atualiza o VocabManager
         .onChange(of: faceManager.smileRight) { vocabManager.update() }
         .onChange(of: faceManager.smileLeft) { vocabManager.update() }
         .onChange(of: faceManager.mouthPucker) { vocabManager.update() }
-        // Adicione também os novos gatilhos se for usar Cabeça/Olhos na MainView
         .onChange(of: faceManager.headYaw) { vocabManager.update() }
         .onChange(of: faceManager.eyeYaw) { vocabManager.update() }
     }

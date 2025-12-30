@@ -11,7 +11,6 @@ struct CalibrationView: View {
     var faceManager: FaceTrackingManager
     var onCalibrationComplete: () -> Void
     
-    // Estados do Processo de Calibração
     enum CalibState {
         case neutral
         case smileLeft
@@ -24,14 +23,10 @@ struct CalibrationView: View {
     
     var body: some View {
         ZStack {
-            // 1. Fundo Escuro (Igual à foto)
             Color(red: 0.11, green: 0.11, blue: 0.12).ignoresSafeArea()
             
             VStack(spacing: 20) {
-                
-                // 2. A CÂMERA (O quadrado no topo da foto)
                 ZStack {
-                    // O Container da Câmera vai aqui dentro para ser visível
                     ARViewContainer(manager: faceManager)
                         .clipShape(RoundedRectangle(cornerRadius: 24))
                         .overlay(
@@ -39,7 +34,6 @@ struct CalibrationView: View {
                                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         )
                     
-                    // Overlay de texto técnico (estilo a foto "TRACKING ACTIVE")
                     VStack {
                         HStack {
                             VStack(alignment: .leading) {
@@ -56,11 +50,10 @@ struct CalibrationView: View {
                     }
                     .padding()
                 }
-                .frame(height: 350) // Altura do quadrado da câmera
+                .frame(height: 350)
                 .padding(.horizontal)
                 .padding(.top, 20)
                 
-                // 3. INSTRUÇÃO CENTRAL
                 Text(instructionText)
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(.white)
@@ -68,29 +61,23 @@ struct CalibrationView: View {
                     .frame(height: 60)
                     .padding(.horizontal)
                 
-                // 4. BARRAS DE DADOS (Igual à parte inferior da foto)
                 VStack(spacing: 25) {
-                    // Barra Esquerda (Cyan)
                     HUDProgressBar(
                         label: "MOUTHSMILELEFT",
                         value: Float(faceManager.smileLeft),
                         color: .cyan,
                         isActive: state == .smileLeft
                     )
-                    
-                    // Barra Direita (Vermelho)
                     HUDProgressBar(
                         label: "MOUTHSMILE RIGHT",
                         value: Float(faceManager.smileRight),
-                        color: Color(red: 1.0, green: 0.27, blue: 0.23), // Vermelho Neon
+                        color: Color(red: 1.0, green: 0.27, blue: 0.23),
                         isActive: state == .smileRight
                     )
-                    
-                    // Barra Bico (Verde - JawOpen/Pucker)
                     HUDProgressBar(
                         label: "MOUTH PUCKER",
                         value: Float(faceManager.mouthPucker),
-                        color: Color(red: 0.2, green: 0.84, blue: 0.29), // Verde Neon
+                        color: Color(red: 0.2, green: 0.84, blue: 0.29),
                         isActive: state == .pucker
                     )
                 }
@@ -113,13 +100,11 @@ struct CalibrationView: View {
                 .padding(.bottom, 20)
             }
         }
-        // Monitoramento de máximos
         .onChange(of: faceManager.smileLeft) { _, new in if state == .smileLeft { maxValue = max(maxValue, Float(new)) } }
         .onChange(of: faceManager.smileRight) { _, new in if state == .smileRight { maxValue = max(maxValue, Float(new)) } }
         .onChange(of: faceManager.mouthPucker) { _, new in if state == .pucker { maxValue = max(maxValue, Float(new)) } }
     }
     
-    // Lógica de Texto
     var instructionText: String {
         switch state {
         case .neutral: return "Relax face to define neutral state."
@@ -156,21 +141,19 @@ struct CalibrationView: View {
     }
 }
 
-// COMPONENTE VISUAL: A Barra de Progresso Estilo HUD
 struct HUDProgressBar: View {
     let label: String
     let value: Float
     let color: Color
-    let isActive: Bool // Se estamos calibrando esta barra agora
+    let isActive: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            // Label e Valor Numérico
             HStack {
                 Text(label)
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.6))
-                    .tracking(1.0) // Espaçamento entre letras
+                    .tracking(1.0)
                 
                 Spacer()
                 
@@ -179,22 +162,16 @@ struct HUDProgressBar: View {
                     .foregroundStyle(color)
             }
             
-            // A Barra
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    // Fundo da barra (cinza escuro)
                     Capsule()
                         .fill(Color.white.opacity(0.1))
                         .frame(height: 8)
-                    
-                    // Frente da barra (colorida)
                     Capsule()
                         .fill(color)
                         .frame(width: CGFloat(value) * geo.size.width, height: 8)
-                        // Brilho extra se for a ativa
                         .shadow(color: isActive ? color.opacity(0.8) : .clear, radius: 8)
-                    
-                    // Marcador de "Pico" (Onde o usuário chegou)
+                
                     if isActive {
                         Rectangle()
                             .fill(Color.white)

@@ -18,8 +18,7 @@ struct JuruLoadingView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            
-            // 2. Content
+        
             VStack(spacing: 20) {
                 Image(systemName: "face.smiling.fill")
                     .font(.system(size: 100))
@@ -40,7 +39,6 @@ struct JuruLoadingView: View {
                     .font(.headline)
                     .foregroundStyle(.white.opacity(0.8))
                 
-                // Custom spinner underneath
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     .scaleEffect(1.5)

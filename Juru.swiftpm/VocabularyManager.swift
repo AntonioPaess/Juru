@@ -88,7 +88,7 @@ class VocabularyManager {
         selectionTask = nil
     }
     
-    // MARK: - EXECUTION 🧠
+    // MARK: - EXECUTION
     
     private func execute(_ action: ActionType) {
         switch action {
@@ -99,16 +99,12 @@ class VocabularyManager {
     }
     
     private func handleSelection(isLeft: Bool) {
-        // 1. Raiz: Esquerda = Letras, Direita = Ações
         if currentBranch.isEmpty {
             if isLeft {
-                // Junta Vogais e Consoantes num grupão
                 isSelectingWord = false
-                // ✅ Salva o estado "Raiz" (vazio) no histórico antes de entrar
                 addToHistory([])
                 startBranch(vowels + consonants)
             } else {
-                // Vai para Ações
                 isSelectingWord = false
                 addToHistory([])
                 startBranch(actions)
@@ -116,12 +112,9 @@ class VocabularyManager {
             return
         }
         
-        // 2. Navegando na Árvore
         let (leftGroup, rightGroup) = split(currentBranch)
         let chosenGroup = isLeft ? leftGroup : rightGroup
-        
-        // Antes de aprofundar, salvamos o grupo atual no histórico
-        // Só salvamos se não for item único (pois item único executa ação)
+
         if chosenGroup.count > 1 {
             addToHistory(currentBranch)
         }
@@ -131,27 +124,22 @@ class VocabularyManager {
     
     private func processGroup(_ group: [String]) {
         if group.count == 1 {
-            // ITEM ÚNICO (Folha da árvore)
             let item = group.first!
             
             if item == "Suggestions" {
                 if !suggestions.isEmpty {
                     isSelectingWord = true
-                    // ✅ Salva onde estávamos antes de entrar nas sugestões
                     addToHistory(currentBranch)
                     startBranch(suggestions)
                 } else {
-                    // Sem sugestões, não faz nada (ou vibra erro)
                 }
             } else if item == "Space" {
                 addSpace()
             } else {
-                // Letra ou Palavra
                 if isSelectingWord { addWord(item) }
                 else { addCharacter(item) }
             }
         } else {
-            // Continua dividindo
             currentBranch = group
             updateLabels()
         }
@@ -182,7 +170,6 @@ class VocabularyManager {
         if items.count <= 3 { return items.joined(separator: " ") }
         
         if isSelectingWord {
-            // Para palavras, mostra intervalo alfabético ou primeira/última
             return "\(items.first!) ... \(items.last!)"
         }
         return "\(items.first!) - \(items.last!)"
@@ -195,19 +182,15 @@ class VocabularyManager {
     }
     
     private func handleBack() {
-        // 1. Se tem histórico, volta um passo
         if !branchHistory.isEmpty {
             let previousState = branchHistory.removeLast()
             
             if previousState.isEmpty {
-                // Se o anterior era vazio, significa que voltamos à Raiz
                 resetToRoot()
             } else {
-                // Senão, restauramos o grupo anterior
                 startBranch(previousState)
             }
         }
-        // 2. Se não tem histórico (já estamos na Raiz), apaga caractere
         else {
             deleteLast()
         }
@@ -217,7 +200,6 @@ class VocabularyManager {
     
     private func addCharacter(_ char: String) {
         let charToAdd: String
-        // Sentence case simples
         if currentMessage.isEmpty || currentMessage.hasSuffix(". ") {
             charToAdd = char.uppercased()
         } else {
@@ -230,14 +212,12 @@ class VocabularyManager {
     }
     
     private func addWord(_ word: String) {
-        // Remove parcial
         let words = currentMessage.split(separator: " ")
         if !words.isEmpty && !currentMessage.hasSuffix(" ") {
              let partialLength = words.last?.count ?? 0
              currentMessage.removeLast(partialLength)
         }
         
-        // Sentence case
         let wordToAdd = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? word.capitalized : word.lowercased()
         
         currentMessage.append(wordToAdd + " ")
@@ -261,7 +241,7 @@ class VocabularyManager {
     
     private func resetToRoot() {
         currentBranch = []
-        branchHistory = [] // Limpa histórico ao resetar
+        branchHistory = []
         isSelectingWord = false
         leftLabel = "Letters"
         rightLabel = "Actions"
