@@ -7,10 +7,15 @@
 
 import Foundation
 
-class TrieNode {
+// MARK: - Fix Swift 6 Concurrency
+// Marcamos como @unchecked Sendable porque a classe é mutável,
+// mas garantimos no VocabularyManager que ela é construída em isolamento
+// e depois transferida para o MainActor, onde reside exclusivamente.
+final class TrieNode: @unchecked Sendable {
     var value: Character?
     var children: [Character: TrieNode] = [:]
     var isTerminating: Bool = false
+    var rank: Int?
     
     init(value: Character? = nil) {
         self.value = value

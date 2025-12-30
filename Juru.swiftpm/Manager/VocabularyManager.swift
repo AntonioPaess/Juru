@@ -13,9 +13,9 @@ import Observation
 @Observable
 class VocabularyManager {
     // MARK: - Dependencies
-    // Mantemos referência forte pois é injetado
     var faceManager: FaceTrackingManager
     private var trie = Trie()
+    var isDictionaryLoaded = false
     
     // MARK: - State
     var currentMessage: String = ""
@@ -33,32 +33,58 @@ class VocabularyManager {
     var isSelectingWord: Bool = false
     private var selectionTask: Task<Void, Never>?
     
-    // Fonte de Dados (Imutáveis)
+    // Fonte de Dados
     let vowels = ["A", "E", "I", "O", "U"]
     let consonants = ["B", "C", "D", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "X", "Y", "Z"]
     let actions = ["Space", "Suggestions"]
     
     init(faceManager: FaceTrackingManager) {
         self.faceManager = faceManager
-        setupDictionary()
         resetToRoot()
+        // Inicia carregamento em background
+        Task {
+            await loadDictionary()
+        }
     }
     
-    private func setupDictionary() {
-        // Dicionário inicial (Poderia vir de um arquivo JSON no futuro)
-        let initialWords = ["love", "now", "here", "ball", "home", "food", "day", "hello", "help", "yes", "no", "water", "please", "thanks"]
-        for word in initialWords { trie.insert(word) }
+    private func loadDictionary() async {
+        // Carregamento pesado fora da Main Thread
+        let loadedTrie = await Task.detached(priority: .userInitiated) { () -> Trie in
+            let newTrie = Trie()
+            
+            // Tenta carregar do JSON
+            if let url = Bundle.main.url(forResource: "WordsData", withExtension: "json"),
+               let data = try? Data(contentsOf: url),
+               let words = try? JSONDecoder().decode([String].self, from: data) {
+                
+                // Insere com rank (índice 0 = mais frequente)
+                for (index, word) in words.enumerated() {
+                    newTrie.insert(word, rank: index)
+                }
+                print("Dicionário carregado com \(words.count) palavras.")
+            } else {
+                // Fallback se o JSON falhar
+                let initialWords = ["love", "now", "here", "ball", "home", "food", "day", "hello", "help", "yes", "no", "water", "please", "thanks"]
+                for (index, word) in initialWords.enumerated() {
+                    newTrie.insert(word, rank: index)
+                }
+                print("Usando dicionário de fallback.")
+            }
+            return newTrie
+        }.value
+        
+        // Atualiza na Main Thread
+        self.trie = loadedTrie
+        self.isDictionaryLoaded = true
     }
     
-    // Loop Principal chamado pela View
+    // Loop Principal
     func update() {
-        // Se já existe um timer rodando, verifica se o gesto parou para cancelar
         if selectionTask != nil {
             if !isGestureActive() { cancelTimer() }
             return
         }
         
-        // Verifica os gatilhos calibrados
         if faceManager.isTriggeringLeft { startTimer(for: .selectLeft) }
         else if faceManager.isTriggeringRight { startTimer(for: .selectRight) }
         else if faceManager.isTriggeringBack { startTimer(for: .backOrDelete) }
@@ -68,12 +94,10 @@ class VocabularyManager {
         return faceManager.isTriggeringLeft || faceManager.isTriggeringRight || faceManager.isTriggeringBack
     }
     
-    // MARK: - Timer / Debounce Logic
     private enum ActionType { case selectLeft, selectRight, backOrDelete }
     
     private func startTimer(for action: ActionType) {
         selectionTask = Task {
-            // Tempo de "hold" para confirmar a seleção (0.4s)
             try? await Task.sleep(for: .seconds(0.4))
             if !Task.isCancelled {
                 self.execute(action)
@@ -87,7 +111,6 @@ class VocabularyManager {
         selectionTask = nil
     }
     
-    // MARK: - Execution Logic
     private func execute(_ action: ActionType) {
         switch action {
         case .selectLeft:  handleSelection(isLeft: true)
@@ -96,13 +119,8 @@ class VocabularyManager {
         }
     }
     
-    // ... (O restante dos métodos handleSelection, processGroup, split, etc. mantêm-se iguais pois são lógica pura de navegação) ...
-    // Estou omitindo aqui para economizar espaço, mas mantenha a lógica de Árvore Binária que já fizemos.
-    // Certifique-se de que `handleBack` e `addCharacter` estejam lá.
-    
     private func handleSelection(isLeft: Bool) {
         if currentBranch.isEmpty {
-            // Salva histórico (Raiz)
             addToHistory([])
             isSelectingWord = false
             if isLeft { startBranch(vowels + consonants) }
@@ -133,7 +151,6 @@ class VocabularyManager {
         }
     }
     
-    // Helpers de Navegação
     private func startBranch(_ items: [String]) { currentBranch = items; updateLabels() }
     
     private func split(_ items: [String]) -> ([String], [String]) {
@@ -169,19 +186,18 @@ class VocabularyManager {
         leftLabel = "Letters"; rightLabel = "Actions"
     }
     
-    // Edição de Texto
     private func addCharacter(_ char: String) {
         let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? char.uppercased() : char.lowercased()
         currentMessage.append(val); updateSuggestions(); resetToRoot()
     }
     
     private func addWord(_ word: String) {
-        // Lógica para substituir a palavra parcial se necessário
         let words = currentMessage.split(separator: " ")
         if !words.isEmpty && !currentMessage.hasSuffix(" ") {
             let partialLen = words.last?.count ?? 0
             currentMessage.removeLast(partialLen)
         }
+        // Capitaliza se for início de frase
         let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? word.capitalized : word.lowercased()
         currentMessage.append(val + " "); suggestions = []; resetToRoot()
     }
@@ -193,8 +209,27 @@ class VocabularyManager {
         resetToRoot()
     }
     
+    // ATUALIZADO: Busca otimizada (Top 4)
     private func updateSuggestions() {
-        let last = currentMessage.split(separator: " ").last.map(String.init) ?? ""
-        suggestions = last.isEmpty ? [] : trie.findWords(startingWith: last)
+        // Pega a última palavra sendo digitada
+        let lastWord = currentMessage.split(separator: " ").last.map(String.init) ?? ""
+        
+        // Se a última letra digitada foi espaço, não sugere nada (início de nova palavra)
+        if currentMessage.hasSuffix(" ") || lastWord.isEmpty {
+            suggestions = []
+            return
+        }
+        
+        // Busca na Trie com Ranks
+        let results = trie.findWordsWithRank(startingWith: lastWord)
+        
+        // Ordena por Rank (menor é melhor) e pega as 4 primeiras
+        // Filtra para não sugerir exatamente o que já foi digitado se for a única opção, mas mantém para autocompletar
+        let topSuggestions = results
+            .sorted { $0.rank < $1.rank }
+            .prefix(4)
+            .map { $0.text }
+        
+        suggestions = Array(topSuggestions)
     }
 }

@@ -7,22 +7,29 @@
 
 import LocalAuthentication
 
+enum AuthError: Error {
+    case notAvailable
+    case failed
+    case userCancelled
+}
+
 struct BiometricAuth {
-    static func authenticate() async -> Bool {
+    static func authenticate() async -> Result<Bool, AuthError> {
         let context = LAContext()
         var error: NSError?
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            return true
+            return .failure(.notAvailable)
         }
 
         do {
-            return try await context.evaluatePolicy(
+            let success = try await context.evaluatePolicy(
                 .deviceOwnerAuthenticationWithBiometrics,
                 localizedReason: "Verify your identity to load your calibration."
             )
+            return success ? .success(true) : .failure(.failed)
         } catch {
-            return false
+            return .failure(.failed)
         }
     }
 }

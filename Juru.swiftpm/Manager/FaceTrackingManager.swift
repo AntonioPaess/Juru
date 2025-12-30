@@ -9,6 +9,13 @@
 import SwiftUI
 import Observation
 
+// Enum para segurança de digitação e refatoração limpa
+enum FaceGesture: String, Codable, Sendable {
+    case smileLeft
+    case smileRight
+    case pucker
+}
+
 private struct GestureConfig {
     static let deadZone = 0.02
     static let dominanceMargin = 0.1
@@ -79,8 +86,8 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     }
     
     var hasSavedCalibration: Bool {
-            return UserDefaults.standard.data(forKey: "UserCalibration") != nil
-        }
+        return UserDefaults.standard.data(forKey: "UserCalibration") != nil
+    }
     
     private func saveCalibration() {
         if let encoded = try? JSONEncoder().encode(calibration) {
@@ -95,13 +102,12 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         }
     }
     
-    func setCalibrationMax(for gesture: String, value: Float) {
+    func setCalibrationMax(for gesture: FaceGesture, value: Float) {
         let val = Double(value)
         switch gesture {
-        case "smileLeft": calibration.smileLeftMax = max(val, GestureConfig.minCalibrationValue)
-        case "smileRight": calibration.smileRightMax = max(val, GestureConfig.minCalibrationValue)
-        case "pucker": calibration.puckerMax = max(val, GestureConfig.minCalibrationValue)
-        default: break
+        case .smileLeft: calibration.smileLeftMax = max(val, GestureConfig.minCalibrationValue)
+        case .smileRight: calibration.smileRightMax = max(val, GestureConfig.minCalibrationValue)
+        case .pucker: calibration.puckerMax = max(val, GestureConfig.minCalibrationValue)
         }
     }
     
@@ -115,10 +121,12 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         return mouthPucker > (calibration.puckerMax * calibration.triggerFactor)
     }
     
+    // MARK: - ARSessionDelegate Otimizado
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
         let currentTime = ProcessInfo.processInfo.systemUptime
         
+        // Otimização: Evita criar Tasks excessivas (Throttle check rápido)
         Task { @MainActor in
             guard currentTime - self.lastUpdateTime > GestureConfig.throttleInterval else { return }
             self.lastUpdateTime = currentTime
@@ -127,12 +135,16 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
             let sRight = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
             let pucker = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
             
+            // Lógica de Dominância com Espelhamento (CORRIGIDO)
+            // Câmera Frontal = Espelho.
+            // O que o ARKit detecta como Esquerda (sLeft) é visto na tela como Direita.
+            
             if sLeft > GestureConfig.deadZone && sLeft > (sRight + GestureConfig.dominanceMargin) {
-                self.smileRight = sLeft
+                self.smileRight = sLeft // ARKit Left -> App Right
                 self.smileLeft = 0.0
             }
             else if sRight > GestureConfig.deadZone && sRight > (sLeft + GestureConfig.dominanceMargin) {
-                self.smileLeft = sRight
+                self.smileLeft = sRight // ARKit Right -> App Left
                 self.smileRight = 0.0
             }
             else {

@@ -4,103 +4,268 @@ struct CalibrationView: View {
     var faceManager: FaceTrackingManager
     var onCalibrationComplete: () -> Void
     
-    enum CalibState { case neutral, smileLeft, smileRight, pucker, finished }
+    // Estados do Fluxo
+    enum CalibState: CaseIterable {
+        case neutral
+        case smileLeft
+        case smileRight
+        case pucker
+        case finished
+    }
+    
     @State private var state: CalibState = .neutral
-    @State private var maxValue: Float = 0.0
+    @State private var progress: CGFloat = 0.0 // 0.0 a 1.0 (Progresso do Hold)
+    @State private var currentMax: Float = 0.0 // O máximo atingido durante o "Hold"
+    @State private var isHolding: Bool = false
+    
+    // Configuração de Tempo (Ajuste fino para o Student Challenge)
+    let holdDuration: TimeInterval = 1.2 // Tempo necessário segurando o gesto
+    @State private var lastChangeTime: Date = Date()
+    
+    // Feedback Visual
+    @State private var feedbackText: String = "0%"
     
     var body: some View {
         ZStack {
-            Color(red: 0.11, green: 0.11, blue: 0.12).ignoresSafeArea()
+            // 1. Fundo e Câmera
+            Color.black.ignoresSafeArea()
             
-            VStack(spacing: 20) {
-                // Câmera Frame
-                ZStack {
-                    ARViewContainer(manager: faceManager)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous)) // Style continuous é mais "Apple"
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .stroke(.separator, lineWidth: 1) // Cor de separador nativa
-                        )
+            ARViewContainer(manager: faceManager)
+                .opacity(0.6) // Levemente escurecido para destacar a UI
+                .ignoresSafeArea()
+                .overlay(
+                    // Vinheta para focar no centro
+                    RadialGradient(
+                        colors: [.clear, .black.opacity(0.8)],
+                        center: .center,
+                        startRadius: 200,
+                        endRadius: 600
+                    )
+                )
+            
+            // 2. Elementos de UI (HUD)
+            VStack {
+                // Topo: Instrução Principal
+                VStack(spacing: 8) {
+                    Text(instructionTitle)
+                        .font(.system(size: 32, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                        .shadow(color: stateColor.opacity(0.8), radius: 10)
                     
-                    VStack {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("TRACKING_ACTIVE")
-                                    .font(.caption2.monospaced().bold())
-                                    .foregroundStyle(.secondary)
-                                Text("60 FPS")
-                                    .font(.caption2.monospaced().bold())
-                                    .foregroundStyle(.cyan)
-                            }
-                            Spacer()
-                        }
-                        Spacer()
-                    }.padding()
+                    Text(instructionSubtitle)
+                        .font(.title3.monospaced())
+                        .foregroundStyle(.white.opacity(0.8))
                 }
-                .frame(height: 350)
-                .padding(.horizontal)
-                .padding(.top, 20)
-                
-                // Instruções
-                Text(instructionText)
-                    .font(.title3.weight(.medium)) // Tamanho semântico
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .frame(height: 60)
-                    .padding(.horizontal)
-                    .transition(.opacity.combined(with: .scale)) // Animação suave na troca de texto
-                    .id(state) // Força a animação na troca de estado
-                
-                // Barras de Progresso
-                VStack(spacing: 25) {
-                    HUDProgressBar(label: "MOUTH SMILE LEFT", value: Float(faceManager.smileLeft), color: .cyan, isActive: state == .smileLeft)
-                    HUDProgressBar(label: "MOUTH SMILE RIGHT", value: Float(faceManager.smileRight), color: Color(red: 1.0, green: 0.27, blue: 0.23), isActive: state == .smileRight)
-                    HUDProgressBar(label: "MOUTH PUCKER", value: Float(faceManager.mouthPucker), color: Color(red: 0.2, green: 0.84, blue: 0.29), isActive: state == .pucker)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 10)
+                .padding(.top, 60)
+                .animation(.easeInOut, value: state)
                 
                 Spacer()
                 
-                // Botão Nativo Apple
-                Button(action: nextStep) {
-                    Text(buttonText)
-                        .font(.headline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
+                // Centro: Indicador de Progresso Circular
+                ZStack {
+                    // Círculo de Fundo
+                    Circle()
+                        .stroke(.white.opacity(0.1), lineWidth: 20)
+                        .frame(width: 220, height: 220)
+                    
+                    // Círculo de Progresso (Hold)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            AngularGradient(
+                                colors: [stateColor.opacity(0.5), stateColor],
+                                center: .center,
+                                startAngle: .degrees(-90),
+                                endAngle: .degrees(270)
+                            ),
+                            style: StrokeStyle(lineWidth: 20, lineCap: .round)
+                        )
+                        .frame(width: 220, height: 220)
+                        .rotationEffect(.degrees(-90))
+                        .shadow(color: stateColor.opacity(0.6), radius: 20)
+                        .animation(.linear(duration: 0.1), value: progress) // Animação fluida
+                    
+                    // Valor Central (Intensidade ou Contagem)
+                    VStack(spacing: 4) {
+                        if state == .neutral {
+                            Image(systemName: "face.dashed")
+                                .font(.system(size: 50))
+                                .foregroundStyle(.white.opacity(0.8))
+                        } else {
+                            Text(feedbackText)
+                                .font(.system(size: 56, weight: .bold, design: .rounded))
+                                .contentTransition(.numericText())
+                            
+                            Text("INTENSITY")
+                                .font(.caption.bold())
+                                .tracking(2)
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                    }
+                    .foregroundStyle(.white)
                 }
-                .buttonStyle(.borderedProminent) // Estilo moderno iOS
-                .controlSize(.large) // Tamanho de botão principal
-                .tint(.white) // Mantém o estilo "High Contrast" (Texto fica preto automático)
-                .foregroundStyle(.black)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 20)
+                .scaleEffect(isHolding ? 1.1 : 1.0)
+                .animation(.spring(response: 0.4, dampingFraction: 0.6), value: isHolding)
+                
+                Spacer()
+                
+                // Rodapé: Feedback Técnico
+                HStack(spacing: 20) {
+                    StatusPill(label: "LEFT", isActive: state == .smileLeft)
+                    StatusPill(label: "RIGHT", isActive: state == .smileRight)
+                    StatusPill(label: "PUCKER", isActive: state == .pucker)
+                }
+                .padding(.bottom, 50)
             }
         }
-        .onChange(of: faceManager.smileLeft) { _, new in if state == .smileLeft { maxValue = max(maxValue, Float(new)) } }
-        .onChange(of: faceManager.smileRight) { _, new in if state == .smileRight { maxValue = max(maxValue, Float(new)) } }
-        .onChange(of: faceManager.mouthPucker) { _, new in if state == .pucker { maxValue = max(maxValue, Float(new)) } }
-    }
-    
-    // ... (restante das variáveis computed instructionText e buttonText permanecem iguais)
-    var instructionText: String {
-        switch state {
-        case .neutral: return "Relax face to define neutral state."
-        case .smileLeft: return "Smile to the LEFT."
-        case .smileRight: return "Smile to the RIGHT."
-        case .pucker: return "Make a PUCKER (Kiss)."
-        case .finished: return "Calibration Complete."
+        // Loop de Lógica (Game Loop)
+        .onReceive(Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()) { _ in
+            handleLogic()
         }
     }
     
-    var buttonText: String { state == .finished ? "START APP" : "NEXT STEP" }
-    
-    func nextStep() {
-        switch state {
-        case .neutral: state = .smileLeft; maxValue = 0
-        case .smileLeft: faceManager.setCalibrationMax(for: "smileLeft", value: maxValue); state = .smileRight; maxValue = 0
-        case .smileRight: faceManager.setCalibrationMax(for: "smileRight", value: maxValue); state = .pucker; maxValue = 0
-        case .pucker: faceManager.setCalibrationMax(for: "pucker", value: maxValue); state = .finished
-        case .finished: onCalibrationComplete()
+    // MARK: - Lógica Principal
+    private func handleLogic() {
+        guard state != .finished else { return }
+        
+        let currentValue = getCurrentMetricValue()
+        
+        // Atualiza texto de porcentagem visual
+        let percent = Int(currentValue * 100)
+        feedbackText = "\(percent)%"
+        
+        // Lógica de "Hold" (Segurar)
+        // Se estiver no Neutral, qualquer valor baixo é bom.
+        // Se estiver nos gestos, precisa superar um limiar mínimo para começar a contar.
+        
+        let threshold: Float = (state == .neutral) ? -1.0 : 0.15 // 15% de movimento mínimo para ativar
+        
+        if currentValue > threshold {
+            if !isHolding {
+                isHolding = true
+                lastChangeTime = Date() // Começou a segurar agora
+            }
+            
+            // Atualiza o máximo detectado durante esse hold
+            if state != .neutral {
+                currentMax = max(currentMax, currentValue)
+            }
+            
+            // Calcula progresso baseado no tempo
+            let timeHeld = Date().timeIntervalSince(lastChangeTime)
+            progress = min(CGFloat(timeHeld / holdDuration), 1.0)
+            
+            // Sucesso!
+            if progress >= 1.0 {
+                completeStep()
+            }
+            
+        } else {
+            // Usuário soltou o rosto antes da hora
+            isHolding = false
+            progress = 0.0
+            // Não zeramos currentMax aqui, pois queremos o pico do melhor "hold" anterior se ele falhar
         }
+    }
+    
+    private func completeStep() {
+        // Feedback Tátil (Sucesso)
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        
+        // Salva e Avança
+        switch state {
+        case .neutral:
+            // No futuro, podemos usar a média do neutral como "deadzone"
+            // Por enquanto, apenas garante que o rosto foi detectado
+            state = .smileLeft
+            
+        case .smileLeft:
+            faceManager.setCalibrationMax(for: .smileLeft, value: currentMax)
+            state = .smileRight
+            
+        case .smileRight:
+            faceManager.setCalibrationMax(for: .smileRight, value: currentMax)
+            state = .pucker
+            
+        case .pucker:
+            faceManager.setCalibrationMax(for: .pucker, value: currentMax)
+            state = .finished
+            // Pequeno delay para mostrar conclusão antes de sair
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                onCalibrationComplete()
+            }
+            
+        case .finished:
+            break
+        }
+        
+        // Reset para próximo passo
+        currentMax = 0.0
+        progress = 0.0
+        isHolding = false
+        lastChangeTime = Date()
+    }
+    
+    // MARK: - Helpers
+    private func getCurrentMetricValue() -> Float {
+        switch state {
+        case .neutral:
+            // No neutral, "progresso" é apenas tempo passando com o rosto detectado.
+            // Retorna 1.0 fixo para encher a barra por tempo se o tracking estiver ativo.
+            // Se quiser validar repouso: return 1.0 - (smileL + smileR + pucker)
+            return 1.0
+        case .smileLeft: return Float(faceManager.smileLeft)
+        case .smileRight: return Float(faceManager.smileRight)
+        case .pucker: return Float(faceManager.mouthPucker)
+        case .finished: return 0.0
+        }
+    }
+    
+    var instructionTitle: String {
+        switch state {
+        case .neutral: return "Relax Face"
+        case .smileLeft: return "Smile Left"
+        case .smileRight: return "Smile Right"
+        case .pucker: return "Make a Kiss"
+        case .finished: return "All Set!"
+        }
+    }
+    
+    var instructionSubtitle: String {
+        switch state {
+        case .neutral: return "Stay still for a moment..."
+        case .smileLeft: return "Hold it to confirm..."
+        case .smileRight: return "Hold it to confirm..."
+        case .pucker: return "Hold it to confirm..."
+        case .finished: return "Loading experience..."
+        }
+    }
+    
+    var stateColor: Color {
+        switch state {
+        case .neutral: return .white
+        case .smileLeft: return .cyan
+        case .smileRight: return .pink
+        case .pucker: return .green
+        case .finished: return .yellow
+        }
+    }
+}
+
+// Componente Visual Pequeno para os passos
+struct StatusPill: View {
+    let label: String
+    let isActive: Bool
+    
+    var body: some View {
+        Text(label)
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundStyle(isActive ? .black : .white.opacity(0.3))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(isActive ? Color.white : Color.white.opacity(0.1))
+            .cornerRadius(20)
+            .animation(.easeInOut, value: isActive)
     }
 }
