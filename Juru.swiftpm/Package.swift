@@ -34,7 +34,8 @@ let package = Package(
             ],
             capabilities: [
                 .camera(purposeString: "Juru uses the TrueDepth camera to detect facial muscle movements for speech synthesis. All tracking is processed locally on your device."),
-                .motion(purposeString: "Used for head movement tracking stabilization.")
+                .motion(purposeString: "Used for head movement tracking stabilization."),
+                .faceID(purposeString: "We use Face ID to verify it's you and load your calibrated settings.")
             ],
             appCategory: .medical
         )

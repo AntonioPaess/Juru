@@ -7,11 +7,13 @@
 
 import Foundation
 import SwiftUI
+import Observation
 
 @MainActor
 @Observable
 class VocabularyManager {
     // MARK: - Dependencies
+    // Mantemos referência forte pois é injetado
     var faceManager: FaceTrackingManager
     private var trie = Trie()
     
@@ -19,30 +21,23 @@ class VocabularyManager {
     var currentMessage: String = ""
     var suggestions: [String] = []
     
-    // Árvore de Navegação Atual
+    // Navegação
     private var currentBranch: [String] = []
-    
-    // ✅ NOVO: Histórico para o botão "Voltar" funcionar nível por nível
     private var branchHistory: [[String]] = []
     
-    // O que mostrar nas bolas
+    // UI Labels
     var leftLabel: String = ""
     var rightLabel: String = ""
     
-    // Estado para saber se estamos escolhendo letras ou palavras
+    // Estado Lógico
     var isSelectingWord: Bool = false
-    
-    // Timer
     private var selectionTask: Task<Void, Never>?
     
-    // MARK: - Data Source
+    // Fonte de Dados (Imutáveis)
     let vowels = ["A", "E", "I", "O", "U"]
     let consonants = ["B", "C", "D", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "X", "Y", "Z"]
-    
-    // ✅ "Delete" removido, pois o bico já faz isso
     let actions = ["Space", "Suggestions"]
     
-    // MARK: - Init
     init(faceManager: FaceTrackingManager) {
         self.faceManager = faceManager
         setupDictionary()
@@ -50,31 +45,35 @@ class VocabularyManager {
     }
     
     private func setupDictionary() {
+        // Dicionário inicial (Poderia vir de um arquivo JSON no futuro)
         let initialWords = ["love", "now", "here", "ball", "home", "food", "day", "hello", "help", "yes", "no", "water", "please", "thanks"]
         for word in initialWords { trie.insert(word) }
     }
     
-    // MARK: - Logic Loop
+    // Loop Principal chamado pela View
     func update() {
+        // Se já existe um timer rodando, verifica se o gesto parou para cancelar
         if selectionTask != nil {
             if !isGestureActive() { cancelTimer() }
             return
         }
         
-        if faceManager.smileLeft > 0.5 { startTimer(for: .selectLeft) }
-        else if faceManager.smileRight > 0.5 { startTimer(for: .selectRight) }
-        else if faceManager.mouthPucker > 0.5 { startTimer(for: .backOrDelete) }
+        // Verifica os gatilhos calibrados
+        if faceManager.isTriggeringLeft { startTimer(for: .selectLeft) }
+        else if faceManager.isTriggeringRight { startTimer(for: .selectRight) }
+        else if faceManager.isTriggeringBack { startTimer(for: .backOrDelete) }
     }
     
     private func isGestureActive() -> Bool {
-        return faceManager.smileLeft > 0.5 || faceManager.smileRight > 0.5 || faceManager.mouthPucker > 0.5
+        return faceManager.isTriggeringLeft || faceManager.isTriggeringRight || faceManager.isTriggeringBack
     }
     
-    // MARK: - Timer Logic
+    // MARK: - Timer / Debounce Logic
     private enum ActionType { case selectLeft, selectRight, backOrDelete }
     
     private func startTimer(for action: ActionType) {
         selectionTask = Task {
+            // Tempo de "hold" para confirmar a seleção (0.4s)
             try? await Task.sleep(for: .seconds(0.4))
             if !Task.isCancelled {
                 self.execute(action)
@@ -88,8 +87,7 @@ class VocabularyManager {
         selectionTask = nil
     }
     
-    // MARK: - EXECUTION
-    
+    // MARK: - Execution Logic
     private func execute(_ action: ActionType) {
         switch action {
         case .selectLeft:  handleSelection(isLeft: true)
@@ -98,68 +96,53 @@ class VocabularyManager {
         }
     }
     
+    // ... (O restante dos métodos handleSelection, processGroup, split, etc. mantêm-se iguais pois são lógica pura de navegação) ...
+    // Estou omitindo aqui para economizar espaço, mas mantenha a lógica de Árvore Binária que já fizemos.
+    // Certifique-se de que `handleBack` e `addCharacter` estejam lá.
+    
     private func handleSelection(isLeft: Bool) {
         if currentBranch.isEmpty {
-            if isLeft {
-                isSelectingWord = false
-                addToHistory([])
-                startBranch(vowels + consonants)
-            } else {
-                isSelectingWord = false
-                addToHistory([])
-                startBranch(actions)
-            }
+            // Salva histórico (Raiz)
+            addToHistory([])
+            isSelectingWord = false
+            if isLeft { startBranch(vowels + consonants) }
+            else { startBranch(actions) }
             return
         }
         
-        let (leftGroup, rightGroup) = split(currentBranch)
-        let chosenGroup = isLeft ? leftGroup : rightGroup
-
-        if chosenGroup.count > 1 {
-            addToHistory(currentBranch)
-        }
+        let (left, right) = split(currentBranch)
+        let chosen = isLeft ? left : right
         
-        processGroup(chosenGroup)
+        if chosen.count > 1 { addToHistory(currentBranch) }
+        processGroup(chosen)
     }
     
     private func processGroup(_ group: [String]) {
         if group.count == 1 {
             let item = group.first!
-            
             if item == "Suggestions" {
                 if !suggestions.isEmpty {
                     isSelectingWord = true
                     addToHistory(currentBranch)
                     startBranch(suggestions)
-                } else {
                 }
-            } else if item == "Space" {
-                addSpace()
-            } else {
-                if isSelectingWord { addWord(item) }
-                else { addCharacter(item) }
-            }
+            } else if item == "Space" { addSpace() }
+            else { isSelectingWord ? addWord(item) : addCharacter(item) }
         } else {
-            currentBranch = group
-            updateLabels()
+            startBranch(group)
         }
     }
+    
+    // Helpers de Navegação
+    private func startBranch(_ items: [String]) { currentBranch = items; updateLabels() }
     
     private func split(_ items: [String]) -> ([String], [String]) {
         let mid = (items.count + 1) / 2
         return (Array(items[0..<mid]), Array(items[mid..<items.count]))
     }
     
-    private func startBranch(_ items: [String]) {
-        currentBranch = items
-        updateLabels()
-    }
-    
     private func updateLabels() {
-        if currentBranch.isEmpty {
-            resetToRoot()
-            return
-        }
+        if currentBranch.isEmpty { resetToRoot(); return }
         let (left, right) = split(currentBranch)
         leftLabel = formatLabel(left)
         rightLabel = formatLabel(right)
@@ -168,91 +151,50 @@ class VocabularyManager {
     private func formatLabel(_ items: [String]) -> String {
         if items.count == 1 { return items.first! }
         if items.count <= 3 { return items.joined(separator: " ") }
-        
-        if isSelectingWord {
-            return "\(items.first!) ... \(items.last!)"
-        }
+        if isSelectingWord { return "\(items.first!) ... \(items.last!)" }
         return "\(items.first!) - \(items.last!)"
-    }
-    
-    // MARK: - Back Logic (O Pulo do Gato) 🐈
-    
-    private func addToHistory(_ state: [String]) {
-        branchHistory.append(state)
     }
     
     private func handleBack() {
         if !branchHistory.isEmpty {
-            let previousState = branchHistory.removeLast()
-            
-            if previousState.isEmpty {
-                resetToRoot()
-            } else {
-                startBranch(previousState)
-            }
-        }
-        else {
-            deleteLast()
-        }
+            let prev = branchHistory.removeLast()
+            if prev.isEmpty { resetToRoot() } else { startBranch(prev) }
+        } else { deleteLast() }
     }
     
-    // MARK: - Typing Logic
+    private func addToHistory(_ state: [String]) { branchHistory.append(state) }
     
+    private func resetToRoot() {
+        currentBranch = []; branchHistory = []; isSelectingWord = false
+        leftLabel = "Letters"; rightLabel = "Actions"
+    }
+    
+    // Edição de Texto
     private func addCharacter(_ char: String) {
-        let charToAdd: String
-        if currentMessage.isEmpty || currentMessage.hasSuffix(". ") {
-            charToAdd = char.uppercased()
-        } else {
-            charToAdd = char.lowercased()
-        }
-        
-        currentMessage.append(charToAdd)
-        updateSuggestions()
-        resetToRoot()
+        let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? char.uppercased() : char.lowercased()
+        currentMessage.append(val); updateSuggestions(); resetToRoot()
     }
     
     private func addWord(_ word: String) {
+        // Lógica para substituir a palavra parcial se necessário
         let words = currentMessage.split(separator: " ")
         if !words.isEmpty && !currentMessage.hasSuffix(" ") {
-             let partialLength = words.last?.count ?? 0
-             currentMessage.removeLast(partialLength)
+            let partialLen = words.last?.count ?? 0
+            currentMessage.removeLast(partialLen)
         }
-        
-        let wordToAdd = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? word.capitalized : word.lowercased()
-        
-        currentMessage.append(wordToAdd + " ")
-        suggestions = []
-        resetToRoot()
+        let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? word.capitalized : word.lowercased()
+        currentMessage.append(val + " "); suggestions = []; resetToRoot()
     }
     
-    private func addSpace() {
-        currentMessage.append(" ")
-        updateSuggestions()
-        resetToRoot()
-    }
+    private func addSpace() { currentMessage.append(" "); updateSuggestions(); resetToRoot() }
     
     private func deleteLast() {
-        if !currentMessage.isEmpty {
-            currentMessage.removeLast()
-            updateSuggestions()
-        }
+        if !currentMessage.isEmpty { currentMessage.removeLast(); updateSuggestions() }
         resetToRoot()
-    }
-    
-    private func resetToRoot() {
-        currentBranch = []
-        branchHistory = []
-        isSelectingWord = false
-        leftLabel = "Letters"
-        rightLabel = "Actions"
     }
     
     private func updateSuggestions() {
-        let lastWord = currentMessage.split(separator: " ").last.map(String.init) ?? ""
-        if !lastWord.isEmpty {
-            suggestions = trie.findWords(startingWith: lastWord)
-        } else {
-            suggestions = []
-        }
+        let last = currentMessage.split(separator: " ").last.map(String.init) ?? ""
+        suggestions = last.isEmpty ? [] : trie.findWords(startingWith: last)
     }
 }

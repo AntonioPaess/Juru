@@ -46,7 +46,7 @@ struct MainTypingView: View {
                 )
                 .padding(.horizontal, 20)
                 .padding(.top, 60)
-                
+            
                 if !vocabManager.suggestions.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
@@ -67,7 +67,6 @@ struct MainTypingView: View {
                 }
                 
                 Spacer()
-                
                 KeyboardView(vocabManager: vocabManager)
                     .padding(.bottom, 40)
             }
@@ -75,16 +74,5 @@ struct MainTypingView: View {
         .onChange(of: faceManager.smileRight) { vocabManager.update() }
         .onChange(of: faceManager.smileLeft) { vocabManager.update() }
         .onChange(of: faceManager.mouthPucker) { vocabManager.update() }
-        .onChange(of: faceManager.headYaw) { vocabManager.update() }
-        .onChange(of: faceManager.eyeYaw) { vocabManager.update() }
     }
-}
-
-#Preview {
-    let faceManager = FaceTrackingManager()
-    let vocabManager = VocabularyManager(faceManager: faceManager)
-    MainTypingView(
-        vocabManager: vocabManager,
-        faceManager: faceManager
-    )
 }
