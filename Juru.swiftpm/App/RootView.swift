@@ -16,6 +16,21 @@ struct RootView: View {
     
     var body: some View {
         ZStack {
+            // CAMADA 0: Fundo Base
+            Color.black.ignoresSafeArea()
+            
+            // CAMADA 1: Câmera Persistente (O Coração do App)
+            // Ela precisa estar aqui na Raiz para nunca ser desalocada.
+            if currentFlow != .permissionDenied {
+                ARViewContainer(manager: faceManager)
+                    .ignoresSafeArea()
+                    // LÓGICA MÁGICA:
+                    // Na Calibração: Opacidade 0.6 (Visível e Escurecida).
+                    // No App Principal: Opacidade 0.0 (Invisível, mas RODANDO os sensores).
+                    .opacity(currentFlow == .calibration ? 0.6 : 0.0)
+            }
+            
+            // CAMADA 2: Interfaces
             switch currentFlow {
             case .loading:
                 JuruLoadingView()
@@ -45,10 +60,12 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut, value: currentFlow)
+        // Gerenciamento de Pausa/Retomada do Sistema
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 faceManager.pause()
-            } else if newPhase == .active && currentFlow == .mainApp {
+            } else if newPhase == .active {
+                // Tenta retomar a sessão se ela existir
                 if let session = faceManager.currentSession {
                     faceManager.start(session: session)
                 }
@@ -65,7 +82,6 @@ struct RootView: View {
         }
         
         Task {
-            // Mantém o loading visível por um tempo mínimo para branding
             try? await Task.sleep(for: .seconds(1.5))
             await checkPrerequisites()
         }
@@ -78,14 +94,11 @@ struct RootView: View {
         }
 
         if faceManager.hasSavedCalibration {
-            // O prompt nativo do iOS aparecerá sobre o JuruLoadingView
             let result = await BiometricAuth.authenticate()
-            
             switch result {
             case .success(true):
                 withAnimation { currentFlow = .mainApp }
             case .success(false), .failure:
-                // Se falhar ou cancelar, cai suavemente para a calibração
                 withAnimation { currentFlow = .calibration }
             }
         } else {

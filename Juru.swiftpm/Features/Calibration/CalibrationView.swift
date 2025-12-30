@@ -14,34 +14,33 @@ struct CalibrationView: View {
     }
     
     @State private var state: CalibState = .neutral
-    @State private var progress: CGFloat = 0.0 // 0.0 a 1.0 (Progresso do Hold)
-    @State private var currentMax: Float = 0.0 // O máximo atingido durante o "Hold"
+    @State private var progress: CGFloat = 0.0
+    @State private var currentMax: Float = 0.0
     @State private var isHolding: Bool = false
-    
-    // Configuração de Tempo (Ajuste fino para o Student Challenge)
-    let holdDuration: TimeInterval = 1.2 // Tempo necessário segurando o gesto
     @State private var lastChangeTime: Date = Date()
-    
-    // Feedback Visual
     @State private var feedbackText: String = "0%"
+    
+    // Configuração de Tempo Dinâmica
+    var holdDuration: TimeInterval {
+        switch state {
+        case .neutral: return 4.0
+        default: return 1.2
+        }
+    }
     
     var body: some View {
         ZStack {
-            // 1. Fundo e Câmera
-            Color.black.ignoresSafeArea()
+            // NOTA: A Câmera (ARViewContainer) e o Color.black foram removidos daqui.
+            // Eles agora vivem no RootView para garantir persistência.
             
-            ARViewContainer(manager: faceManager)
-                .opacity(0.6) // Levemente escurecido para destacar a UI
-                .ignoresSafeArea()
-                .overlay(
-                    // Vinheta para focar no centro
-                    RadialGradient(
-                        colors: [.clear, .black.opacity(0.8)],
-                        center: .center,
-                        startRadius: 200,
-                        endRadius: 600
-                    )
-                )
+            // 1. Vinheta (Para focar no centro e dar contraste sobre a câmera do RootView)
+            RadialGradient(
+                colors: [.clear, .black.opacity(0.8)],
+                center: .center,
+                startRadius: 200,
+                endRadius: 600
+            )
+            .ignoresSafeArea()
             
             // 2. Elementos de UI (HUD)
             VStack {
@@ -63,12 +62,10 @@ struct CalibrationView: View {
                 
                 // Centro: Indicador de Progresso Circular
                 ZStack {
-                    // Círculo de Fundo
                     Circle()
                         .stroke(.white.opacity(0.1), lineWidth: 20)
                         .frame(width: 220, height: 220)
                     
-                    // Círculo de Progresso (Hold)
                     Circle()
                         .trim(from: 0, to: progress)
                         .stroke(
@@ -83,9 +80,8 @@ struct CalibrationView: View {
                         .frame(width: 220, height: 220)
                         .rotationEffect(.degrees(-90))
                         .shadow(color: stateColor.opacity(0.6), radius: 20)
-                        .animation(.linear(duration: 0.1), value: progress) // Animação fluida
+                        .animation(.linear(duration: 0.1), value: progress)
                     
-                    // Valor Central (Intensidade ou Contagem)
                     VStack(spacing: 4) {
                         if state == .neutral {
                             Image(systemName: "face.dashed")
@@ -118,103 +114,71 @@ struct CalibrationView: View {
                 .padding(.bottom, 50)
             }
         }
-        // Loop de Lógica (Game Loop)
         .onReceive(Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()) { _ in
             handleLogic()
         }
     }
     
-    // MARK: - Lógica Principal
+    // MARK: - Lógica Principal (Mantida igual, apenas copiando os métodos auxiliares)
     private func handleLogic() {
         guard state != .finished else { return }
-        
         let currentValue = getCurrentMetricValue()
-        
-        // Atualiza texto de porcentagem visual
         let percent = Int(currentValue * 100)
         feedbackText = "\(percent)%"
         
-        // Lógica de "Hold" (Segurar)
-        // Se estiver no Neutral, qualquer valor baixo é bom.
-        // Se estiver nos gestos, precisa superar um limiar mínimo para começar a contar.
-        
-        let threshold: Float = (state == .neutral) ? -1.0 : 0.15 // 15% de movimento mínimo para ativar
+        let threshold: Float = (state == .neutral) ? -1.0 : 0.15
         
         if currentValue > threshold {
             if !isHolding {
                 isHolding = true
-                lastChangeTime = Date() // Começou a segurar agora
+                lastChangeTime = Date()
             }
-            
-            // Atualiza o máximo detectado durante esse hold
             if state != .neutral {
                 currentMax = max(currentMax, currentValue)
             }
             
-            // Calcula progresso baseado no tempo
             let timeHeld = Date().timeIntervalSince(lastChangeTime)
             progress = min(CGFloat(timeHeld / holdDuration), 1.0)
             
-            // Sucesso!
             if progress >= 1.0 {
                 completeStep()
             }
-            
         } else {
-            // Usuário soltou o rosto antes da hora
             isHolding = false
             progress = 0.0
-            // Não zeramos currentMax aqui, pois queremos o pico do melhor "hold" anterior se ele falhar
         }
     }
     
     private func completeStep() {
-        // Feedback Tátil (Sucesso)
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
         
-        // Salva e Avança
         switch state {
-        case .neutral:
-            // No futuro, podemos usar a média do neutral como "deadzone"
-            // Por enquanto, apenas garante que o rosto foi detectado
-            state = .smileLeft
-            
+        case .neutral: state = .smileLeft
         case .smileLeft:
             faceManager.setCalibrationMax(for: .smileLeft, value: currentMax)
             state = .smileRight
-            
         case .smileRight:
             faceManager.setCalibrationMax(for: .smileRight, value: currentMax)
             state = .pucker
-            
         case .pucker:
             faceManager.setCalibrationMax(for: .pucker, value: currentMax)
             state = .finished
-            // Pequeno delay para mostrar conclusão antes de sair
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 onCalibrationComplete()
             }
-            
-        case .finished:
-            break
+        case .finished: break
         }
         
-        // Reset para próximo passo
         currentMax = 0.0
         progress = 0.0
         isHolding = false
         lastChangeTime = Date()
     }
     
-    // MARK: - Helpers
     private func getCurrentMetricValue() -> Float {
         switch state {
-        case .neutral:
-            // No neutral, "progresso" é apenas tempo passando com o rosto detectado.
-            // Retorna 1.0 fixo para encher a barra por tempo se o tracking estiver ativo.
-            // Se quiser validar repouso: return 1.0 - (smileL + smileR + pucker)
-            return 1.0
+        case .neutral: return 1.0
         case .smileLeft: return Float(faceManager.smileLeft)
         case .smileRight: return Float(faceManager.smileRight)
         case .pucker: return Float(faceManager.mouthPucker)
@@ -253,7 +217,7 @@ struct CalibrationView: View {
     }
 }
 
-// Componente Visual Pequeno para os passos
+// Pequeno helper para os status pills
 struct StatusPill: View {
     let label: String
     let isActive: Bool

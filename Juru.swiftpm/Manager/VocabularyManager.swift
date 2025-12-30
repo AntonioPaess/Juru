@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import Observation
+import AVFoundation
 
 @MainActor
 @Observable
@@ -15,6 +16,7 @@ class VocabularyManager {
     // MARK: - Dependencies
     var faceManager: FaceTrackingManager
     private var trie = Trie()
+    let synthesizer = AVSpeechSynthesizer()
     var isDictionaryLoaded = false
     
     // MARK: - State
@@ -109,6 +111,13 @@ class VocabularyManager {
     private func cancelTimer() {
         selectionTask?.cancel()
         selectionTask = nil
+    }
+
+    func speakCurrentMessage() {
+        let utterance = AVSpeechUtterance(string: currentMessage)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US") // Ou use o locale atual
+        utterance.rate = 0.5
+        synthesizer.speak(utterance)
     }
     
     private func execute(_ action: ActionType) {
