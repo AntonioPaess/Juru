@@ -72,30 +72,27 @@ struct RootView: View {
         }
     }
     
-    // MARK: - Lógica de Decisão
-    
     private func handleLoadingSequence() {
         if vocabularyManager == nil {
             vocabularyManager = VocabularyManager(faceManager: faceManager)
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            checkPrerequisites()
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            await checkPrerequisites()
         }
     }
     
-    private func checkPrerequisites() {
+    private func checkPrerequisites() async {
         if faceManager.hasSavedCalibration {
             isAuthenticating = true
-            BiometricAuth.authenticate { success in
-                isAuthenticating = false
-                if success {
-                    print("Face ID Success: Loading Saved Calibration")
-                    withAnimation { currentFlow = .mainApp }
-                } else {
-                    print("Face ID Failed: Force Calibration")
-                    withAnimation { currentFlow = .calibration }
-                }
+            let success = await BiometricAuth.authenticate()
+            isAuthenticating = false
+            
+            if success {
+                withAnimation { currentFlow = .mainApp }
+            } else {
+                withAnimation { currentFlow = .calibration }
             }
         } else {
             withAnimation { currentFlow = .calibration }

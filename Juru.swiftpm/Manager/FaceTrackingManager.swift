@@ -34,9 +34,9 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         didSet { saveCalibration() }
     }
     var isCameraDenied = false
+    var triggerHaptic: Int = 0
     
     weak var currentSession: ARSession?
-    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     private var isPuckering = false
     private var lastUpdateTime: TimeInterval = 0
     
@@ -44,8 +44,6 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         super.init()
         loadCalibration()
     }
-    
-    // MARK: - Ciclo de Vida
     
     func start(session: ARSession) {
         self.currentSession = session
@@ -74,14 +72,11 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         let configuration = ARFaceTrackingConfiguration()
         configuration.isLightEstimationEnabled = false
         session.run(configuration, options: [.removeExistingAnchors, .resetTracking])
-        feedbackGenerator.prepare()
     }
     
     func pause() {
         currentSession?.pause()
     }
-    
-    // MARK: - Persistência
     
     var hasSavedCalibration: Bool {
             return UserDefaults.standard.data(forKey: "UserCalibration") != nil
@@ -110,8 +105,6 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         }
     }
     
-    // MARK: - Gatilhos
-    
     var isTriggeringLeft: Bool {
         return smileLeft > (calibration.smileLeftMax * calibration.triggerFactor)
     }
@@ -121,8 +114,6 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     var isTriggeringBack: Bool {
         return mouthPucker > (calibration.puckerMax * calibration.triggerFactor)
     }
-    
-    // MARK: - ARSessionDelegate
     
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
@@ -152,7 +143,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
             if pucker > GestureConfig.puckerThreshold {
                 self.mouthPucker = pucker
                 if !self.isPuckering {
-                    self.feedbackGenerator.impactOccurred()
+                    self.triggerHaptic += 1
                     self.isPuckering = true
                 }
             } else {

@@ -71,6 +71,7 @@ struct MainTypingView: View {
                     .padding(.bottom, 40)
             }
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: faceManager.triggerHaptic)
         .onChange(of: faceManager.smileRight) { vocabManager.update() }
         .onChange(of: faceManager.smileLeft) { vocabManager.update() }
         .onChange(of: faceManager.mouthPucker) { vocabManager.update() }

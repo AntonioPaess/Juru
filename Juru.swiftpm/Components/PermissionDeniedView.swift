@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct PermissionDeniedView: View {
+    @Environment(\.openURL) var openURL
+
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "video.slash.fill")
@@ -25,7 +27,7 @@ struct PermissionDeniedView: View {
             
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
+                    openURL(url)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -34,8 +36,4 @@ struct PermissionDeniedView: View {
         .padding()
         .background(.background)
     }
-}
-
-#Preview {
-    PermissionDeniedView()
 }

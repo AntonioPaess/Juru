@@ -7,52 +7,6 @@
 
 import SwiftUI
 
-// MARK: - Componentes de Calibração (Neon Guides)
-
-struct NeonGuideCircle: View {
-    var isActive: Bool
-    var color: Color
-    var value: Float
-    
-    var body: some View {
-        ZStack {
-            // Glow Externo
-            Circle()
-                .stroke(color.opacity(isActive ? 0.8 : 0.3), lineWidth: isActive ? 4 : 2)
-                .shadow(color: color.opacity(isActive ? 1.0 : 0.0), radius: 20)
-                .frame(width: 100, height: 100)
-            
-            // Preenchimento Interno
-            Circle()
-                .fill(color.opacity(0.3))
-                .frame(width: 100 * CGFloat(value), height: 100 * CGFloat(value))
-        }
-        .animation(.spring(response: 0.3), value: value)
-    }
-}
-
-struct NeonGuideCapsule: View {
-    var isActive: Bool
-    var color: Color
-    var value: Float
-    
-    var body: some View {
-        ZStack {
-            Capsule()
-                .stroke(color.opacity(isActive ? 0.8 : 0.3), lineWidth: isActive ? 4 : 2)
-                .shadow(color: color.opacity(isActive ? 1.0 : 0.0), radius: 20)
-                .frame(width: 120, height: 60)
-            
-            Capsule()
-                .fill(color.opacity(0.3))
-                .frame(width: 120 * CGFloat(value), height: 60 * CGFloat(value))
-        }
-        .animation(.spring(response: 0.3), value: value)
-    }
-}
-
-// MARK: - Barra de Progresso Estilo HUD
-
 struct HUDProgressBar: View {
     let label: String
     let value: Float
@@ -97,8 +51,6 @@ struct HUDProgressBar: View {
         }
     }
 }
-
-// MARK: - Bolas Neon do Teclado
 
 struct NeonBall: View {
     let text: String
