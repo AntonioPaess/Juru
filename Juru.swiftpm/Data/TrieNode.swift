@@ -7,8 +7,6 @@
 
 import Foundation
 
-import Foundation
-
 class TrieNode {
     var value: Character?
     var children: [Character: TrieNode] = [:]
