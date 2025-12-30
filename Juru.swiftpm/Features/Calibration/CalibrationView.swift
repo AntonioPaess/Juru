@@ -1,10 +1,3 @@
-//
-//  CalibrationView.swift
-//  Juru
-//
-//  Created by Antônio Paes De Andrade on 28/12/25.
-//
-
 import SwiftUI
 
 struct CalibrationView: View {
@@ -20,46 +13,67 @@ struct CalibrationView: View {
             Color(red: 0.11, green: 0.11, blue: 0.12).ignoresSafeArea()
             
             VStack(spacing: 20) {
-                // Câmera
+                // Câmera Frame
                 ZStack {
                     ARViewContainer(manager: faceManager)
-                        .clipShape(RoundedRectangle(cornerRadius: 24))
-                        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous)) // Style continuous é mais "Apple"
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(.separator, lineWidth: 1) // Cor de separador nativa
+                        )
                     
                     VStack {
                         HStack {
                             VStack(alignment: .leading) {
-                                Text("TRACKING_ACTIVE").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(.white.opacity(0.5))
-                                Text("60 FPS").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(.cyan)
+                                Text("TRACKING_ACTIVE")
+                                    .font(.caption2.monospaced().bold())
+                                    .foregroundStyle(.secondary)
+                                Text("60 FPS")
+                                    .font(.caption2.monospaced().bold())
+                                    .foregroundStyle(.cyan)
                             }
                             Spacer()
                         }
                         Spacer()
                     }.padding()
                 }
-                .frame(height: 350).padding(.horizontal).padding(.top, 20)
+                .frame(height: 350)
+                .padding(.horizontal)
+                .padding(.top, 20)
                 
+                // Instruções
                 Text(instructionText)
-                    .font(.system(size: 18, weight: .medium)).foregroundStyle(.white).multilineTextAlignment(.center)
-                    .frame(height: 60).padding(.horizontal)
+                    .font(.title3.weight(.medium)) // Tamanho semântico
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .frame(height: 60)
+                    .padding(.horizontal)
+                    .transition(.opacity.combined(with: .scale)) // Animação suave na troca de texto
+                    .id(state) // Força a animação na troca de estado
                 
-                // ✅ Usando Componentes
+                // Barras de Progresso
                 VStack(spacing: 25) {
                     HUDProgressBar(label: "MOUTH SMILE LEFT", value: Float(faceManager.smileLeft), color: .cyan, isActive: state == .smileLeft)
                     HUDProgressBar(label: "MOUTH SMILE RIGHT", value: Float(faceManager.smileRight), color: Color(red: 1.0, green: 0.27, blue: 0.23), isActive: state == .smileRight)
                     HUDProgressBar(label: "MOUTH PUCKER", value: Float(faceManager.mouthPucker), color: Color(red: 0.2, green: 0.84, blue: 0.29), isActive: state == .pucker)
                 }
-                .padding(.horizontal, 24).padding(.top, 10)
+                .padding(.horizontal, 24)
+                .padding(.top, 10)
                 
                 Spacer()
                 
+                // Botão Nativo Apple
                 Button(action: nextStep) {
                     Text(buttonText)
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.black).frame(maxWidth: .infinity).frame(height: 50)
-                        .background(Color.white).cornerRadius(12)
+                        .font(.headline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, 24).padding(.bottom, 20)
+                .buttonStyle(.borderedProminent) // Estilo moderno iOS
+                .controlSize(.large) // Tamanho de botão principal
+                .tint(.white) // Mantém o estilo "High Contrast" (Texto fica preto automático)
+                .foregroundStyle(.black)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 20)
             }
         }
         .onChange(of: faceManager.smileLeft) { _, new in if state == .smileLeft { maxValue = max(maxValue, Float(new)) } }
@@ -67,6 +81,7 @@ struct CalibrationView: View {
         .onChange(of: faceManager.mouthPucker) { _, new in if state == .pucker { maxValue = max(maxValue, Float(new)) } }
     }
     
+    // ... (restante das variáveis computed instructionText e buttonText permanecem iguais)
     var instructionText: String {
         switch state {
         case .neutral: return "Relax face to define neutral state."

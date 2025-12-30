@@ -58,15 +58,22 @@ struct NeonBall: View {
     let positionLabel: String
     let size: CGFloat
     
+    // Acessibilidade: Escala o tamanho da fonte baseado nas preferências do usuário
+    @ScaledMetric(relativeTo: .body) var scaleFactor: CGFloat = 1.0
+    
     var body: some View {
         ZStack {
+            // Fundo sutil com Material para melhor contraste em fundos claros/complexos
+            Circle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.5)
+            
             Circle()
                 .stroke(color, lineWidth: 3)
                 .shadow(color: color.opacity(0.8), radius: 15)
-                .background(Color.black.opacity(0.01))
             
             Text(text)
-                .font(.system(size: fontSizeFor(text, size), weight: .bold, design: .rounded))
+                .font(.system(size: fontSizeFor(text, size) * scaleFactor, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
                 .padding(10)
@@ -76,6 +83,7 @@ struct NeonBall: View {
             VStack {
                 Spacer()
                 HStack(spacing: 4) {
+                    // SymbolEffect (iOS 17+) - Adiciona uma animação sutil se quiser
                     if positionLabel == "LEFT" { Image(systemName: "arrow.left") }
                     Text(positionLabel)
                         .font(.system(size: size * 0.08, weight: .black))
