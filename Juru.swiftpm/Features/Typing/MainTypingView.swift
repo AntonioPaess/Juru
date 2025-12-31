@@ -6,64 +6,56 @@
 //
 
 import SwiftUI
-import AVFoundation
 
 struct MainTypingView: View {
     @Bindable var vocabManager: VocabularyManager
     var faceManager: FaceTrackingManager
-    @Environment(\.colorScheme)
-    var colorScheme
-    var isDarkMode: Bool {
-        colorScheme == .dark
-    }
+    @Environment(\.colorScheme) var colorScheme
     
     private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
     
     var body: some View {
         ZStack {
-            if isDarkMode {
-                Color.clear
-                RadialGradient(
-                    colors: [.clear, .black.opacity(0.9)],
-                    center: .center,
-                    startRadius: 100,
-                    endRadius: 500
-                )
-                .ignoresSafeArea()
-            } else {
-                Color.clear
-            }
+            Color.juruBackground.ignoresSafeArea()
             
-            VStack(spacing: 16) {
-                HStack(alignment: .top) {
+            VStack(spacing: 24) {
+                HStack(alignment: .center) {
+                    Image(systemName: "leaf.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.juruTeal)
+                    
                     Spacer()
-                    HStack(spacing: 6) {
-                        StatusDot(color: .cyan, isActive: faceManager.isTriggeringLeft)
-                        StatusDot(color: .pink, isActive: faceManager.isTriggeringRight)
-                        StatusDot(color: .green, isActive: faceManager.isTriggeringBack)
+                    
+                    HStack(spacing: 8) {
+                        StatusIndicator(isActive: faceManager.isTriggeringLeft, color: .juruTeal)
+                        StatusIndicator(isActive: faceManager.isTriggeringRight, color: .juruTeal)
+                        StatusIndicator(isActive: faceManager.isTriggeringBack, color: .juruCoral)
                     }
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Face Tracking Status Indicators")
+                    .padding(12)
+                    .background(Color.juruCardBackground.opacity(0.8))
+                    .cornerRadius(30)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 30)
+                            .stroke(Color.juruText.opacity(0.1), lineWidth: 1)
+                    )
                     
                     Spacer()
                     
-                    Image(systemName: "eye.fill")
-                        .font(.title3)
-                        .foregroundStyle(isDarkMode ? .white.opacity(0.3) : .black.opacity(0.5))
+                    Image(systemName: "waveform")
+                        .font(.title2)
+                        .foregroundStyle(Color.juruSecondaryText)
                 }
-                .padding(.horizontal)
-                .padding(.top)
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
                 
                 VStack(alignment: .leading) {
                     ScrollViewReader { proxy in
                         ScrollView {
-                            Text(vocabManager.currentMessage.isEmpty ? "Start typing..." : vocabManager.currentMessage)
-                                .font(.system(size: 36, weight: .medium, design: .rounded))
-                                .foregroundStyle(isDarkMode ? .white : .black)
+                            Text(vocabManager.currentMessage.isEmpty ? "Tap with your smile..." : vocabManager.currentMessage)
+                                .font(.system(size: 40, weight: .bold, design: .rounded))
+                                .foregroundStyle(vocabManager.currentMessage.isEmpty ? Color.juruSecondaryText : Color.juruText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding()
+                                .padding(30)
                                 .id("bottom")
                         }
                         .onChange(of: vocabManager.currentMessage) {
@@ -71,83 +63,64 @@ struct MainTypingView: View {
                         }
                     }
                 }
-                .frame(height: 140)
-                .background(.ultraThinMaterial)
-                .cornerRadius(24)
+                .frame(height: 180)
+                .background(Color.juruCardBackground)
+                .cornerRadius(32)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24)
-                        .stroke(isDarkMode ? .white.opacity(0.1) : .black.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 32)
+                        .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.juruLead.opacity(0.1), lineWidth: 1)
                 )
-                .padding(.horizontal)
-                .shadow(color: .black.opacity(0.1), radius: 10)
-                .accessibilityLabel("Current Message")
-                .accessibilityValue(vocabManager.currentMessage)
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.05), radius: 15, x: 0, y: 5)
+                .padding(.horizontal, 24)
+                
+                if !vocabManager.suggestions.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(vocabManager.suggestions, id: \.self) { word in
+                                Text(word)
+                                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                                    .foregroundStyle(Color.juruText)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 12)
+                                    .background(Color.juruCardBackground)
+                                    .cornerRadius(16)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.juruText.opacity(0.1), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 
                 Spacer()
                 
-                if !vocabManager.suggestions.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("SUGGESTIONS")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(isDarkMode ? .white.opacity(0.5) : .black.opacity(0.6))
-                            .padding(.leading, 24)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(vocabManager.suggestions, id: \.self) { word in
-                                    Text(word)
-                                        .font(.subheadline.bold())
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 10)
-                                        .background(.ultraThinMaterial)
-                                        .cornerRadius(12)
-                                        .foregroundStyle(isDarkMode ? .white : .black)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(isDarkMode ? .white.opacity(0.3) : .black.opacity(0.2), lineWidth: 1)
-                                        )
-                                }
-                            }
-                            .padding(.horizontal, 24)
-                        }
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .accessibilityLabel("Word Suggestions available")
-                }
-                
-                HStack(spacing: 16) {
-                    TypingZoneCard(
+                HStack(spacing: 20) {
+                    NaturalTypingCard(
                         text: vocabManager.leftLabel,
                         isActive: faceManager.isTriggeringLeft,
-                        color: .cyan,
-                        alignment: .leading,
-                        isDark: isDarkMode
+                        alignment: .leading
                     )
-                    .accessibilityLabel("Left Selection: \(vocabManager.leftLabel)")
-                    .accessibilityHint("Smile Left to select")
                     
-                    TypingZoneCard(
+                    NaturalTypingCard(
                         text: vocabManager.rightLabel,
                         isActive: faceManager.isTriggeringRight,
-                        color: .pink,
-                        alignment: .trailing,
-                        isDark: isDarkMode
+                        alignment: .trailing
                     )
-                    .accessibilityLabel("Right Selection: \(vocabManager.rightLabel)")
-                    .accessibilityHint("Smile Right to select")
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 24)
                 .padding(.bottom, 20)
                 
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "mouth")
-                    Text("Pucker to Undo/Clear")
+                    Text("Pucker to Undo")
                 }
-                .font(.caption)
-                .foregroundStyle(isDarkMode ? .white.opacity(0.5) : .black.opacity(0.6))
+                .font(.system(.caption, design: .rounded).weight(.medium))
+                .foregroundStyle(Color.juruSecondaryText)
                 .padding(.bottom, 10)
-                .accessibilityLabel("Pucker mouth to undo or clear")
             }
         }
         .onReceive(timer) { _ in
@@ -156,45 +129,44 @@ struct MainTypingView: View {
     }
 }
 
-struct TypingZoneCard: View {
+struct NaturalTypingCard: View {
     let text: String
     let isActive: Bool
-    let color: Color
     let alignment: Alignment
-    let isDark: Bool
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         ZStack(alignment: alignment) {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(isActive ? AnyShapeStyle(color.opacity(0.4)) : AnyShapeStyle(.ultraThinMaterial))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24)
-                        .stroke(isActive ? color : (isDark ? .white.opacity(0.2) : .black.opacity(0.2)), lineWidth: isActive ? 3 : 1)
-                )
-                .shadow(color: isActive ? color.opacity(0.6) : .clear, radius: 20)
+            RoundedRectangle(cornerRadius: 28)
+                .fill(isActive ? Color.juruTeal : Color.juruCardBackground)
+                .shadow(color: isActive ? Color.juruTeal.opacity(0.4) : Color.black.opacity(colorScheme == .dark ? 0.3 : 0.05), radius: 20, x: 0, y: 10)
             
             Text(text)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .font(.system(size: 28, weight: .bold, design: .rounded))
                 .multilineTextAlignment(.center)
-                .foregroundStyle(isActive ? .white : (isDark ? .white : .black))
-                .padding(20)
+                .foregroundStyle(isActive ? .white : Color.juruText)
+                .padding(24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .scaleEffect(isActive ? 1.05 : 1.0)
         }
-        .frame(height: 160)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isActive)
+        .frame(height: 180)
+        .overlay(
+            RoundedRectangle(cornerRadius: 28)
+                .stroke(isActive ? Color.clear : Color.juruText.opacity(0.1), lineWidth: 1)
+        )
+        .scaleEffect(isActive ? 1.05 : 1.0)
+        .animation(.spring(response: 0.35, dampingFraction: 0.65), value: isActive)
     }
 }
 
-struct StatusDot: View {
-    let color: Color
+struct StatusIndicator: View {
     let isActive: Bool
+    let color: Color
+    
     var body: some View {
         Circle()
-            .fill(isActive ? color : Color.gray.opacity(0.3))
+            .fill(isActive ? color : Color.juruText.opacity(0.2))
             .frame(width: 8, height: 8)
-            .scaleEffect(isActive ? 1.4 : 1.0)
+            .scaleEffect(isActive ? 1.5 : 1.0)
             .animation(.spring, value: isActive)
-            .shadow(color: isActive ? color : .clear, radius: 4)
     }
 }

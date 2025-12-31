@@ -8,109 +8,66 @@
 import SwiftUI
 
 struct JuruLoadingView: View {
-    @State private var isAnimating = false
-    @State private var scanLineOffset: CGFloat = -100
-    @State private var opacityVal = 0.3
-    
-    let neonCyan = Color(red: 0.0, green: 0.95, blue: 1.0)
-    let neonPurple = Color(red: 0.7, green: 0.0, blue: 1.0)
+    @State private var breathingScale: CGFloat = 0.8
+    @State private var opacityVal = 0.0
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
-            ZStack {
-                Circle()
-                    .fill(neonPurple)
-                    .frame(width: 300, height: 300)
-                    .blur(radius: 100)
-                    .offset(x: -100, y: -200)
-                    .opacity(0.4)
-                
-                Circle()
-                    .fill(neonCyan)
-                    .frame(width: 250, height: 250)
-                    .blur(radius: 100)
-                    .offset(x: 100, y: 200)
-                    .opacity(0.3)
-            }
-            .scaleEffect(isAnimating ? 1.1 : 0.9)
-            .animation(.easeInOut(duration: 4).repeatForever(autoreverses: true), value: isAnimating)
+            Color.juruBackground.ignoresSafeArea()
             
             VStack(spacing: 40) {
                 Spacer()
+                
                 ZStack {
                     Circle()
-                        .stroke(
-                            AngularGradient(colors: [neonCyan.opacity(0), neonCyan, neonCyan.opacity(0)], center: .center),
-                            lineWidth: 2
-                        )
-                        .frame(width: 120, height: 120)
-                        .rotationEffect(.degrees(isAnimating ? 360 : 0))
-                        .animation(.linear(duration: 8).repeatForever(autoreverses: false), value: isAnimating)
+                        .fill(Color.juruTeal.opacity(0.1))
+                        .frame(width: 200, height: 200)
+                        .scaleEffect(breathingScale)
                     
                     Circle()
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        .fill(Color.juruCoral.opacity(0.1))
                         .frame(width: 150, height: 150)
-                    
-                    Image(systemName: "face.smiling")
-                        .font(.system(size: 60, weight: .thin))
-                        .foregroundStyle(.white)
-                        .shadow(color: neonCyan, radius: 20)
-                        .overlay {
-                            Rectangle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.clear, neonCyan.opacity(0.8), .clear],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .frame(height: 20)
-                                .offset(y: scanLineOffset)
-                                .mask(Image(systemName: "face.smiling").font(.system(size: 60, weight: .thin)))
-                        }
+                        .scaleEffect(breathingScale * 0.9)
+                        .animation(.easeInOut(duration: 2.5).delay(0.2).repeatForever(), value: breathingScale)
+
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 60))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.juruTeal, Color.juruCoral],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .opacity(opacityVal)
                 }
                 
-                VStack(spacing: 12) {
-                    Text("JURU")
-                        .font(.system(size: 52, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .tracking(2)
-                        .shadow(color: neonPurple.opacity(0.8), radius: 15, x: 0, y: 0)
+                VStack(spacing: 16) {
+                    Text("Juru")
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.juruText)
                     
-                    HStack(spacing: 4) {
-                        Text("SYSTEM_READY")
-                        Text("•")
-                            .foregroundStyle(neonCyan)
-                        Text("FACE_ENGINE_V1.0")
-                    }
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.6))
+                    Text("Preparing your voice...")
+                        .font(.system(.body, design: .rounded))
+                        .foregroundStyle(Color.juruSecondaryText)
                 }
+                .opacity(opacityVal)
                 
                 Spacer()
                 
-                VStack(spacing: 8) {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: neonCyan))
-                        .scaleEffect(1.2)
-                    
-                    Text("Calibrating Neural Mesh...")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(neonCyan.opacity(0.8))
-                }
-                .padding(.bottom, 50)
+                ProgressView()
+                    .tint(Color.juruTeal)
+                    .scaleEffect(1.2)
+                    .padding(.bottom, 60)
             }
         }
         .onAppear {
-            isAnimating = true
-            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                scanLineOffset = 40
+            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                breathingScale = 1.1
+            }
+            withAnimation(.easeIn(duration: 1.0)) {
+                opacityVal = 1.0
             }
         }
     }
-}
-
-#Preview {
-    JuruLoadingView()
 }
