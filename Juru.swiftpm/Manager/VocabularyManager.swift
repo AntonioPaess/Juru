@@ -10,7 +10,6 @@ import SwiftUI
 import Observation
 import AVFoundation
 
-// Enum para segurança nos comandos
 enum AppCommand: String, CaseIterable {
     case space = "Space"
     case suggestions = "Suggestions"
@@ -27,26 +26,22 @@ class VocabularyManager {
     private let synthesizer = AVSpeechSynthesizer()
     var isDictionaryLoaded = false
     
-    // MARK: - Configurações (AQUI ESTÁ A VARIÁVEL QUE FALTAVA)
+    // MARK: - Configurações
     var isDarkMode: Bool = true
     
     // MARK: - State
     var currentMessage: String = ""
     var suggestions: [String] = []
     
-    // Navegação
     private var currentBranch: [String] = []
     private var branchHistory: [[String]] = []
     
-    // UI Labels
     var leftLabel: String = ""
     var rightLabel: String = ""
     
-    // Estado Lógico
     var isSelectingWord: Bool = false
     private var selectionTask: Task<Void, Never>?
     
-    // Dados
     let alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
     let quickPhrases = ["Yes", "No", "Pain", "Water"]
     let editingCommands = [AppCommand.space.rawValue, AppCommand.clear.rawValue, AppCommand.speak.rawValue]
@@ -160,7 +155,6 @@ class VocabularyManager {
     }
     
     private func executeLeafNode(_ item: String) {
-        // Verifica se é um comando do sistema
         if let command = AppCommand(rawValue: item) {
             switch command {
             case .space:
@@ -173,14 +167,11 @@ class VocabularyManager {
                 currentMessage = ""
                 suggestions = []
                 resetToRoot()
-            case .suggestions:
-                // Fallback caso apareça em algum menu antigo
-                break
+            case .suggestions: break
             }
             return
         }
         
-        // Verifica frases rápidas
         if quickPhrases.contains(item) {
             speak(text: item)
             currentMessage = ""
@@ -188,7 +179,6 @@ class VocabularyManager {
             return
         }
         
-        // Texto normal
         if isSelectingWord { addWord(item) }
         else { addCharacter(item) }
     }

@@ -12,16 +12,12 @@ struct JuruLoadingView: View {
     @State private var scanLineOffset: CGFloat = -100
     @State private var opacityVal = 0.3
     
-    // Paleta Cyberpunk
     let neonCyan = Color(red: 0.0, green: 0.95, blue: 1.0)
     let neonPurple = Color(red: 0.7, green: 0.0, blue: 1.0)
     
     var body: some View {
         ZStack {
-            // 1. Fundo Profundo (Deep Space)
             Color.black.ignoresSafeArea()
-            
-            // 2. Luz de Fundo (Ambient Glow)
             ZStack {
                 Circle()
                     .fill(neonPurple)
@@ -42,10 +38,7 @@ struct JuruLoadingView: View {
             
             VStack(spacing: 40) {
                 Spacer()
-                
-                // 3. Ícone Central: Conceito "Boca Digital / Scanner"
                 ZStack {
-                    // Círculos de "Alvo" (HUD Style)
                     Circle()
                         .stroke(
                             AngularGradient(colors: [neonCyan.opacity(0), neonCyan, neonCyan.opacity(0)], center: .center),
@@ -59,13 +52,11 @@ struct JuruLoadingView: View {
                         .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         .frame(width: 150, height: 150)
                     
-                    // Ícone Símbolo (Face/Sorriso) com efeito Neon
-                    Image(systemName: "face.smiling") // Ou "mouth" se disponível no SF Symbols 6
+                    Image(systemName: "face.smiling")
                         .font(.system(size: 60, weight: .thin))
                         .foregroundStyle(.white)
                         .shadow(color: neonCyan, radius: 20)
                         .overlay {
-                            // Linha de Scanner passando
                             Rectangle()
                                 .fill(
                                     LinearGradient(
@@ -80,15 +71,13 @@ struct JuruLoadingView: View {
                         }
                 }
                 
-                // 4. Tipografia
                 VStack(spacing: 12) {
                     Text("JURU")
                         .font(.system(size: 52, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
-                        .tracking(2) // Espaçamento entre letras
+                        .tracking(2)
                         .shadow(color: neonPurple.opacity(0.8), radius: 15, x: 0, y: 0)
                     
-                    // Texto Técnico (Monospaced = Tech feel)
                     HStack(spacing: 4) {
                         Text("SYSTEM_READY")
                         Text("•")
@@ -101,7 +90,6 @@ struct JuruLoadingView: View {
                 
                 Spacer()
                 
-                // 5. Indicador de Loading Minimalista
                 VStack(spacing: 8) {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: neonCyan))
@@ -116,8 +104,6 @@ struct JuruLoadingView: View {
         }
         .onAppear {
             isAnimating = true
-            
-            // Animação do Scanner
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 scanLineOffset = 40
             }

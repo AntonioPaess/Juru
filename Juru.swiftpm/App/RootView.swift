@@ -23,19 +23,13 @@ struct RootView: View {
     
     var body: some View {
         ZStack {
-            // CAMADA 0: Fundo Base
             Color.black.ignoresSafeArea()
-            
-            // CAMADA 1: Câmera Persistente (O Coração do App)
-            // Ela precisa estar aqui na Raiz para nunca ser desalocada.
             if currentFlow != .permissionDenied {
                 ARViewContainer(manager: faceManager)
                     .ignoresSafeArea()
-                // MUDANÇA: 1.0 (Visível) sempre que não for loading
                     .opacity(currentFlow == .loading ? 0.0 : 1.0)
             }
             
-            // CAMADA 2: Interfaces
             switch currentFlow {
             case .loading:
                 JuruLoadingView()
@@ -65,12 +59,10 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut, value: currentFlow)
-        // Gerenciamento de Pausa/Retomada do Sistema
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 faceManager.pause()
             } else if newPhase == .active {
-                // Tenta retomar a sessão se ela existir
                 if let session = faceManager.currentSession {
                     faceManager.start(session: session)
                 }

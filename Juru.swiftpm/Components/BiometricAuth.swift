@@ -17,11 +17,11 @@ struct BiometricAuth {
     static func authenticate() async -> Result<Bool, AuthError> {
         let context = LAContext()
         var error: NSError?
-
+        
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
             return .failure(.notAvailable)
         }
-
+        
         do {
             let success = try await context.evaluatePolicy(
                 .deviceOwnerAuthenticationWithBiometrics,

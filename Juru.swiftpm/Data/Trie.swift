@@ -8,8 +8,6 @@
 import Foundation
 
 // MARK: - Fix Swift 6 Concurrency
-// final + @unchecked Sendable permite transferir a instância da Task de background
-// para a Main Thread sem erros de compilação.
 final class Trie: @unchecked Sendable {
     private let root: TrieNode
     
@@ -26,7 +24,6 @@ final class Trie: @unchecked Sendable {
         }
         currentNode.isTerminating = true
         
-        // Mantém o melhor rank (menor número) se a palavra for reinserida
         if currentNode.rank == nil || rank < (currentNode.rank ?? Int.max) {
             currentNode.rank = rank
         }

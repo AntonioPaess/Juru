@@ -23,7 +23,6 @@ private struct GestureConfig {
     static let minCalibrationValue: Double = 0.1
 }
 
-// Calibração agora usa o Enum como chave
 struct UserCalibration: Codable {
     var thresholds: [FaceGesture: Double] = [
         .smileLeft: 0.5,
@@ -36,7 +35,6 @@ struct UserCalibration: Codable {
 @MainActor
 @Observable
 class FaceTrackingManager: NSObject, ARSessionDelegate {
-    // Armazena valores atuais indexados pelo Enum
     var currentValues: [FaceGesture: Double] = [
         .smileLeft: 0.0,
         .smileRight: 0.0,
@@ -53,16 +51,12 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     weak var currentSession: ARSession?
     private var isPuckering = false
     private var lastUpdateTime: TimeInterval = 0
-    
-    // Constante para UserDefaults (Evita Magic String)
     private let kCalibrationKey = "UserCalibration"
     
     override init() {
         super.init()
         loadCalibration()
     }
-    
-    // ... (start, runSession, pause mantidos iguais) ...
     
     func start(session: ARSession) {
         self.currentSession = session
@@ -110,7 +104,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         calibration.thresholds[gesture] = max(Double(value), GestureConfig.minCalibrationValue)
     }
     
-    // Helpers de Acesso Seguro
+    // MARK: - Helpers de Acesso Seguro
     func getValue(for gesture: FaceGesture) -> Double {
         return currentValues[gesture] ?? 0.0
     }
@@ -121,12 +115,10 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         return current > (max * calibration.triggerFactor)
     }
     
-    // Atalhos para compatibilidade com a View
     var isTriggeringLeft: Bool { isTriggering(.smileLeft) }
     var isTriggeringRight: Bool { isTriggering(.smileRight) }
     var isTriggeringBack: Bool { isTriggering(.pucker) }
     
-    // Acesso direto para UI (CalibrationView)
     var smileLeft: Double { getValue(for: .smileLeft) }
     var smileRight: Double { getValue(for: .smileRight) }
     var mouthPucker: Double { getValue(for: .pucker) }
@@ -144,13 +136,12 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
             let sRight = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
             let pucker = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
             
-            // Lógica de Dominância
             var newValues: [FaceGesture: Double] = [.smileLeft: 0.0, .smileRight: 0.0, .pucker: 0.0]
             
             if sLeft > GestureConfig.deadZone && sLeft > (sRight + GestureConfig.dominanceMargin) {
-                newValues[.smileRight] = sLeft // Espelhado: Left -> App Right
+                newValues[.smileRight] = sLeft
             } else if sRight > GestureConfig.deadZone && sRight > (sLeft + GestureConfig.dominanceMargin) {
-                newValues[.smileLeft] = sRight // Espelhado: Right -> App Left
+                newValues[.smileLeft] = sRight
             }
             
             if pucker > GestureConfig.puckerThreshold {
