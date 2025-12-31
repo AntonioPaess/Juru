@@ -26,9 +26,6 @@ class VocabularyManager {
     private let synthesizer = AVSpeechSynthesizer()
     var isDictionaryLoaded = false
     
-    // MARK: - Configurações
-    var isDarkMode: Bool = true
-    
     // MARK: - State
     var currentMessage: String = ""
     var suggestions: [String] = []
