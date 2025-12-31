@@ -24,10 +24,8 @@ struct RootView: View {
             if currentFlow != .permissionDenied {
                 ARViewContainer(manager: faceManager)
                     .ignoresSafeArea()
-                    // LÓGICA MÁGICA:
-                    // Na Calibração: Opacidade 0.6 (Visível e Escurecida).
-                    // No App Principal: Opacidade 0.0 (Invisível, mas RODANDO os sensores).
-                    .opacity(currentFlow == .calibration ? 0.6 : 0.0)
+                // MUDANÇA: 1.0 (Visível) sempre que não for loading
+                    .opacity(currentFlow == .loading ? 0.0 : 1.0)
             }
             
             // CAMADA 2: Interfaces
@@ -92,7 +90,7 @@ struct RootView: View {
             currentFlow = .permissionDenied
             return
         }
-
+        
         if faceManager.hasSavedCalibration {
             let result = await BiometricAuth.authenticate()
             switch result {

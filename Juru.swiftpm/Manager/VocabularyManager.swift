@@ -13,80 +13,72 @@ import AVFoundation
 @MainActor
 @Observable
 class VocabularyManager {
-    // MARK: - Dependencies
+    // MARK: - Dependências
     var faceManager: FaceTrackingManager
     private var trie = Trie()
-    let synthesizer = AVSpeechSynthesizer()
     var isDictionaryLoaded = false
+    private let synthesizer = AVSpeechSynthesizer()
     
-    // MARK: - State
+    // Configurações
+    var isDarkMode: Bool = true
+    
+    // MARK: - Estado
     var currentMessage: String = ""
     var suggestions: [String] = []
     
     // Navegação
-    private var currentBranch: [String] = []
+    var currentBranch: [String] = []
     private var branchHistory: [[String]] = []
     
-    // UI Labels
-    var leftLabel: String = ""
-    var rightLabel: String = ""
+    // Etiquetas UI
+    var leftLabel: String = "Speller"
+    var rightLabel: String = "Quick Words"
     
     // Estado Lógico
     var isSelectingWord: Bool = false
     private var selectionTask: Task<Void, Never>?
     
-    // Fonte de Dados
-    let vowels = ["A", "E", "I", "O", "U"]
-    let consonants = ["B", "C", "D", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "X", "Y", "Z"]
-    let actions = ["Space", "Suggestions"]
+    // MARK: - DADOS ESTÁTICOS
     
+    let alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
+    let quickPhrases = ["Yes", "No", "Pain", "Water"]
+    let editingCommands = ["Space", "Speak"]
+    
+    // MARK: - Init & Setup
     init(faceManager: FaceTrackingManager) {
         self.faceManager = faceManager
+        setupAudio()
         resetToRoot()
-        // Inicia carregamento em background
-        Task {
-            await loadDictionary()
-        }
+        Task { await loadDictionary() }
+    }
+    
+    private func setupAudio() {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        try? AVAudioSession.sharedInstance().setActive(true)
     }
     
     private func loadDictionary() async {
-        // Carregamento pesado fora da Main Thread
         let loadedTrie = await Task.detached(priority: .userInitiated) { () -> Trie in
             let newTrie = Trie()
-            
-            // Tenta carregar do JSON
             if let url = Bundle.main.url(forResource: "WordsData", withExtension: "json"),
                let data = try? Data(contentsOf: url),
                let words = try? JSONDecoder().decode([String].self, from: data) {
-                
-                // Insere com rank (índice 0 = mais frequente)
-                for (index, word) in words.enumerated() {
-                    newTrie.insert(word, rank: index)
-                }
-                print("Dicionário carregado com \(words.count) palavras.")
+                for (index, word) in words.enumerated() { newTrie.insert(word, rank: index) }
             } else {
-                // Fallback se o JSON falhar
-                let initialWords = ["love", "now", "here", "ball", "home", "food", "day", "hello", "help", "yes", "no", "water", "please", "thanks"]
-                for (index, word) in initialWords.enumerated() {
-                    newTrie.insert(word, rank: index)
-                }
-                print("Usando dicionário de fallback.")
+                ["hello", "thanks", "please", "water", "pain", "yes", "no"].enumerated().forEach { newTrie.insert($0.element, rank: $0.offset) }
             }
             return newTrie
         }.value
-        
-        // Atualiza na Main Thread
         self.trie = loadedTrie
         self.isDictionaryLoaded = true
     }
     
-    // Loop Principal
+    // MARK: - Game Loop
     func update() {
         if selectionTask != nil {
             if !isGestureActive() { cancelTimer() }
             return
         }
-        
         if faceManager.isTriggeringLeft { startTimer(for: .selectLeft) }
         else if faceManager.isTriggeringRight { startTimer(for: .selectRight) }
         else if faceManager.isTriggeringBack { startTimer(for: .backOrDelete) }
@@ -112,13 +104,6 @@ class VocabularyManager {
         selectionTask?.cancel()
         selectionTask = nil
     }
-
-    func speakCurrentMessage() {
-        let utterance = AVSpeechUtterance(string: currentMessage)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US") // Ou use o locale atual
-        utterance.rate = 0.5
-        synthesizer.speak(utterance)
-    }
     
     private func execute(_ action: ActionType) {
         switch action {
@@ -128,38 +113,68 @@ class VocabularyManager {
         }
     }
     
+    // MARK: - Lógica Contextual
     private func handleSelection(isLeft: Bool) {
         if currentBranch.isEmpty {
             addToHistory([])
-            isSelectingWord = false
-            if isLeft { startBranch(vowels + consonants) }
-            else { startBranch(actions) }
+            if isLeft {
+                isSelectingWord = false
+                startBranch(alphabet)
+            } else {
+                let contextMenu = generateRightContextMenu()
+                isSelectingWord = true
+                startBranch(contextMenu)
+            }
             return
         }
         
         let (left, right) = split(currentBranch)
         let chosen = isLeft ? left : right
         
-        if chosen.count > 1 { addToHistory(currentBranch) }
-        processGroup(chosen)
-    }
-    
-    private func processGroup(_ group: [String]) {
-        if group.count == 1 {
-            let item = group.first!
-            if item == "Suggestions" {
-                if !suggestions.isEmpty {
-                    isSelectingWord = true
-                    addToHistory(currentBranch)
-                    startBranch(suggestions)
-                }
-            } else if item == "Space" { addSpace() }
-            else { isSelectingWord ? addWord(item) : addCharacter(item) }
+        if chosen.count > 1 {
+            addToHistory(currentBranch)
+            startBranch(chosen)
         } else {
-            startBranch(group)
+            if let item = chosen.first {
+                executeLeafNode(item)
+            }
         }
     }
     
+    private func generateRightContextMenu() -> [String] {
+        if currentMessage.isEmpty {
+            return quickPhrases
+        } else {
+            var menu: [String] = []
+            if suggestions.count > 0 { menu.append(suggestions[0]) }
+            if suggestions.count > 1 { menu.append(suggestions[1]) }
+            menu.append(contentsOf: editingCommands)
+            return menu
+        }
+    }
+    
+    private func executeLeafNode(_ item: String) {
+        switch item {
+        case "Space":
+            addSpace()
+        case "Speak":
+            speakCurrentMessage()
+            suggestions = []
+            resetToRoot()
+        case "Clear":
+            currentMessage = ""
+            suggestions = []
+            resetToRoot()
+        case "Yes", "No", "Pain", "Water":
+            speak(text: item)
+            currentMessage = ""; resetToRoot()
+        default:
+            if isSelectingWord { addWord(item) }
+            else { addCharacter(item) }
+        }
+    }
+    
+    // MARK: - Helpers de Navegação
     private func startBranch(_ items: [String]) { currentBranch = items; updateLabels() }
     
     private func split(_ items: [String]) -> ([String], [String]) {
@@ -176,7 +191,8 @@ class VocabularyManager {
     
     private func formatLabel(_ items: [String]) -> String {
         if items.count == 1 { return items.first! }
-        if items.count <= 3 { return items.joined(separator: " ") }
+        if items.contains("A") && items.contains("Z") { return "A - Z" }
+        if items.count <= 3 { return items.joined(separator: "\n") }
         if isSelectingWord { return "\(items.first!) ... \(items.last!)" }
         return "\(items.first!) - \(items.last!)"
     }
@@ -192,23 +208,41 @@ class VocabularyManager {
     
     private func resetToRoot() {
         currentBranch = []; branchHistory = []; isSelectingWord = false
-        leftLabel = "Letters"; rightLabel = "Actions"
+        updateSuggestions()
+        leftLabel = "A - Z"
+        rightLabel = currentMessage.isEmpty ? "Quick Words" : (suggestions.isEmpty ? "Edit & Speak" : "Predict & Edit")
     }
     
+    // MARK: - Manipulação de Texto
     private func addCharacter(_ char: String) {
         let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? char.uppercased() : char.lowercased()
-        currentMessage.append(val); updateSuggestions(); resetToRoot()
+        currentMessage.append(val)
+        updateSuggestions()
+        resetToRoot()
     }
     
+    // CORREÇÃO AQUI: Substituição inteligente
     private func addWord(_ word: String) {
-        let words = currentMessage.split(separator: " ")
-        if !words.isEmpty && !currentMessage.hasSuffix(" ") {
-            let partialLen = words.last?.count ?? 0
-            currentMessage.removeLast(partialLen)
+        // Se a mensagem não está vazia e não termina com espaço,
+        // significa que estamos no meio de uma palavra (ex: "Hel").
+        // Removemos essa parte parcial antes de adicionar a palavra completa.
+        if !currentMessage.isEmpty && !currentMessage.hasSuffix(" ") {
+            if let lastSpaceIndex = currentMessage.lastIndex(of: " ") {
+                // Remove tudo depois do último espaço
+                currentMessage = String(currentMessage[...lastSpaceIndex])
+            } else {
+                // Se não tem espaço, é a primeira palavra sendo digitada. Limpa tudo.
+                currentMessage = ""
+            }
         }
-        // Capitaliza se for início de frase
-        let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? word.capitalized : word.lowercased()
-        currentMessage.append(val + " "); suggestions = []; resetToRoot()
+        
+        // Verifica se precisa capitalizar (início de frase)
+        let shouldCapitalize = currentMessage.isEmpty || currentMessage.hasSuffix(". ")
+        let val = shouldCapitalize ? word.capitalized : word.lowercased()
+        
+        currentMessage.append(val + " ")
+        suggestions = []
+        resetToRoot()
     }
     
     private func addSpace() { currentMessage.append(" "); updateSuggestions(); resetToRoot() }
@@ -218,27 +252,22 @@ class VocabularyManager {
         resetToRoot()
     }
     
-    // ATUALIZADO: Busca otimizada (Top 4)
     private func updateSuggestions() {
-        // Pega a última palavra sendo digitada
         let lastWord = currentMessage.split(separator: " ").last.map(String.init) ?? ""
-        
-        // Se a última letra digitada foi espaço, não sugere nada (início de nova palavra)
         if currentMessage.hasSuffix(" ") || lastWord.isEmpty {
-            suggestions = []
-            return
+            suggestions = []; return
         }
-        
-        // Busca na Trie com Ranks
         let results = trie.findWordsWithRank(startingWith: lastWord)
-        
-        // Ordena por Rank (menor é melhor) e pega as 4 primeiras
-        // Filtra para não sugerir exatamente o que já foi digitado se for a única opção, mas mantém para autocompletar
-        let topSuggestions = results
-            .sorted { $0.rank < $1.rank }
-            .prefix(4)
-            .map { $0.text }
-        
-        suggestions = Array(topSuggestions)
+        let top = results.sorted { $0.rank < $1.rank }.prefix(2).map { $0.text }
+        suggestions = Array(top)
+    }
+    
+    func speakCurrentMessage() { speak(text: currentMessage.isEmpty ? "No text" : currentMessage) }
+    
+    func speak(text: String) {
+        if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        synthesizer.speak(utterance)
     }
 }

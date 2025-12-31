@@ -5,74 +5,59 @@ struct MainTypingView: View {
     @Bindable var vocabManager: VocabularyManager
     var faceManager: FaceTrackingManager
     
-    // Animação de background suave
-    @State private var animateGradient = false
-    
-    // O "Motor" que faz a lógica rodar
+    // Motor de atualização
     private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
     
     var body: some View {
         ZStack {
-            // 1. Background Dinâmico (Ambiental)
-            LinearGradient(
-                colors: [Color.black, Color(red: 0.1, green: 0.05, blue: 0.2)],
-                startPoint: animateGradient ? .topLeading : .bottomLeading,
-                endPoint: animateGradient ? .bottomTrailing : .topTrailing
-            )
-            .ignoresSafeArea()
-            .onAppear {
-                withAnimation(.linear(duration: 10).repeatForever(autoreverses: true)) {
-                    animateGradient.toggle()
-                }
+            // FUNDO DINÂMICO
+            if vocabManager.isDarkMode {
+                Color.clear
+            } else {
+                Color.white.opacity(0.85)
             }
             
-            VStack(spacing: 20) {
-                // 2. Barra Superior (Ações Rápidas)
-                HStack {
-                    Button(action: { /* Configs Action */ }) {
-                        Image(systemName: "gearshape.fill")
-                            .font(.title2)
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                    
+            if vocabManager.isDarkMode {
+                RadialGradient(
+                    colors: [.clear, .black.opacity(0.9)],
+                    center: .center,
+                    startRadius: 100,
+                    endRadius: 500
+                )
+                .ignoresSafeArea()
+            }
+            
+            VStack(spacing: 16) {
+                // --- BARRA SUPERIOR ---
+                HStack(alignment: .top) {
                     Spacer()
                     
-                    // Indicador de Status do Rosto
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(faceManager.isTriggeringLeft ? Color.cyan : Color.gray.opacity(0.3))
-                            .frame(width: 8, height: 8)
-                        Circle()
-                            .fill(faceManager.isTriggeringRight ? Color.pink : Color.gray.opacity(0.3))
-                            .frame(width: 8, height: 8)
-                        Circle()
-                            .fill(faceManager.isTriggeringBack ? Color.green : Color.gray.opacity(0.3))
-                            .frame(width: 8, height: 8)
+                    // STATUS DO ROSTO
+                    HStack(spacing: 6) {
+                        StatusDot(color: .cyan, isActive: faceManager.isTriggeringLeft)
+                        StatusDot(color: .pink, isActive: faceManager.isTriggeringRight)
+                        StatusDot(color: .green, isActive: faceManager.isTriggeringBack)
                     }
-                    .padding(8)
+                    .padding(10)
                     .background(.ultraThinMaterial, in: Capsule())
                     
                     Spacer()
                     
-                    Button(action: {
-                        vocabManager.currentMessage = ""
-                        vocabManager.suggestions = []
-                    }) {
-                        Image(systemName: "trash")
-                            .font(.title2)
-                            .foregroundStyle(.red.opacity(0.8))
-                    }
+                    // Ícone discreto
+                    Image(systemName: "eye.fill")
+                        .font(.title3)
+                        .foregroundStyle(vocabManager.isDarkMode ? .white.opacity(0.3) : .black.opacity(0.3))
                 }
                 .padding(.horizontal)
                 .padding(.top)
                 
-                // 3. Área de Texto (Display)
+                // --- DISPLAY DE TEXTO ---
                 VStack(alignment: .leading) {
                     ScrollViewReader { proxy in
                         ScrollView {
                             Text(vocabManager.currentMessage.isEmpty ? "Start typing..." : vocabManager.currentMessage)
-                                .font(.system(size: 32, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white)
+                                .font(.system(size: 36, weight: .medium, design: .rounded))
+                                .foregroundStyle(vocabManager.isDarkMode ? .white : .black)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding()
                                 .id("bottom")
@@ -82,108 +67,131 @@ struct MainTypingView: View {
                         }
                     }
                 }
-                .frame(height: 150)
+                .frame(height: 140)
                 .background(.ultraThinMaterial)
-                .cornerRadius(20)
+                .cornerRadius(24)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(.white.opacity(0.1), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(vocabManager.isDarkMode ? .white.opacity(0.1) : .black.opacity(0.1), lineWidth: 1)
                 )
                 .padding(.horizontal)
+                .shadow(color: .black.opacity(0.1), radius: 10)
                 
-                // Botão de Falar (Destaque)
-                if !vocabManager.currentMessage.isEmpty {
-                    Button(action: { vocabManager.speakCurrentMessage() }) {
-                        HStack {
-                            Image(systemName: "speaker.wave.2.fill")
-                            Text("Speak")
-                        }
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 20)
-                        .background(Color.blue)
-                        .cornerRadius(30)
-                        .shadow(color: .blue.opacity(0.5), radius: 10)
-                    }
-                    .transition(.scale.combined(with: .opacity))
-                }
+                // *** BOTÃO DE FALA REMOVIDO DAQUI ***
                 
                 Spacer()
                 
-                // 4. Área de Input (Zonas Ativas)
+                // --- PREDICTIONS (Sugestões) ---
+                if !vocabManager.suggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SUGGESTIONS")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(vocabManager.isDarkMode ? .white.opacity(0.5) : .black.opacity(0.5))
+                            .padding(.leading, 24)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(vocabManager.suggestions, id: \.self) { word in
+                                    Text(word)
+                                        .font(.subheadline.bold())
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(.ultraThinMaterial)
+                                        .cornerRadius(12)
+                                        .foregroundStyle(vocabManager.isDarkMode ? .white : .black)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(vocabManager.isDarkMode ? .white.opacity(0.3) : .black.opacity(0.1), lineWidth: 1)
+                                        )
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                
+                // --- INPUT CARDS ---
                 HStack(spacing: 16) {
-                    // Zona Esquerda
+                    // ESQUERDA
                     TypingZoneCard(
                         text: vocabManager.leftLabel,
                         isActive: faceManager.isTriggeringLeft,
                         color: .cyan,
-                        alignment: .leading
+                        alignment: .leading,
+                        isDark: vocabManager.isDarkMode
                     )
                     
-                    // Separador Central (Decorativo)
-                    Rectangle()
-                        .fill(LinearGradient(colors: [.clear, .white.opacity(0.2), .clear], startPoint: .top, endPoint: .bottom))
-                        .frame(width: 1)
-                        .frame(maxHeight: 100)
-                    
-                    // Zona Direita
+                    // DIREITA
                     TypingZoneCard(
                         text: vocabManager.rightLabel,
                         isActive: faceManager.isTriggeringRight,
                         color: .pink,
-                        alignment: .trailing
+                        alignment: .trailing,
+                        isDark: vocabManager.isDarkMode
                     )
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 20)
                 
-                // Dica de "Voltar" (Rodapé)
-                Text("Pucker/Kiss to Undo or Go Back")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.4))
-                    .padding(.bottom)
-                    .opacity(faceManager.isTriggeringBack ? 1.0 : 0.5)
-                    .scaleEffect(faceManager.isTriggeringBack ? 1.1 : 1.0)
-                    .animation(.spring, value: faceManager.isTriggeringBack)
+                // Rodapé
+                HStack {
+                    Image(systemName: "mouth")
+                    Text("Pucker to Undo")
+                }
+                .font(.caption)
+                .foregroundStyle(vocabManager.isDarkMode ? .white.opacity(0.5) : .black.opacity(0.5))
+                .padding(.bottom, 10)
             }
         }
-        // ESTA É A PEÇA QUE FALTAVA:
+        .preferredColorScheme(vocabManager.isDarkMode ? .dark : .light)
         .onReceive(timer) { _ in
             vocabManager.update()
         }
     }
 }
 
-// Componente Visual das Zonas
+// (Os componentes StatusDot e TypingZoneCard permanecem os mesmos da resposta anterior)
 struct TypingZoneCard: View {
     let text: String
     let isActive: Bool
     let color: Color
     let alignment: Alignment
+    let isDark: Bool
     
     var body: some View {
         ZStack(alignment: alignment) {
-            // Background Ativo
             RoundedRectangle(cornerRadius: 24)
-                .fill(isActive ? AnyShapeStyle(color.opacity(0.2)) : AnyShapeStyle(.ultraThinMaterial))
+                .fill(isActive ? AnyShapeStyle(color.opacity(0.4)) : AnyShapeStyle(.ultraThinMaterial))
                 .overlay(
                     RoundedRectangle(cornerRadius: 24)
-                        .stroke(isActive ? color : .white.opacity(0.1), lineWidth: isActive ? 3 : 1)
+                        .stroke(isActive ? color : (isDark ? .white.opacity(0.2) : .black.opacity(0.1)), lineWidth: isActive ? 3 : 1)
                 )
                 .shadow(color: isActive ? color.opacity(0.6) : .clear, radius: 20)
             
-            // Conteúdo
             Text(text)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(size: 26, weight: .bold, design: .rounded))
                 .multilineTextAlignment(.center)
-                .foregroundStyle(isActive ? .white : .white.opacity(0.8))
-                .padding(24)
+                .foregroundStyle(isActive ? .white : (isDark ? .white : .black))
+                .padding(20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .scaleEffect(isActive ? 1.05 : 1.0)
         }
-        .frame(height: 180)
+        .frame(height: 160)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isActive)
-        .animation(.smooth, value: text)
+    }
+}
+
+struct StatusDot: View {
+    let color: Color
+    let isActive: Bool
+    var body: some View {
+        Circle()
+            .fill(isActive ? color : Color.gray.opacity(0.3))
+            .frame(width: 8, height: 8)
+            .scaleEffect(isActive ? 1.4 : 1.0)
+            .animation(.spring, value: isActive)
+            .shadow(color: isActive ? color : .clear, radius: 4)
     }
 }
