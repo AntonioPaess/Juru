@@ -9,8 +9,7 @@
 import SwiftUI
 import Observation
 
-// Enum para segurança de digitação e refatoração limpa
-enum FaceGesture: String, Codable, Sendable {
+enum FaceGesture: String, Codable, Sendable, CaseIterable {
     case smileLeft
     case smileRight
     case pucker
@@ -24,22 +23,30 @@ private struct GestureConfig {
     static let minCalibrationValue: Double = 0.1
 }
 
+// Calibração agora usa o Enum como chave
 struct UserCalibration: Codable {
-    var smileLeftMax: Double = 0.5
-    var smileRightMax: Double = 0.5
-    var puckerMax: Double = 0.5
+    var thresholds: [FaceGesture: Double] = [
+        .smileLeft: 0.5,
+        .smileRight: 0.5,
+        .pucker: 0.5
+    ]
     var triggerFactor: Double = 0.6
 }
 
 @MainActor
 @Observable
 class FaceTrackingManager: NSObject, ARSessionDelegate {
-    var smileLeft: Double = 0.0
-    var smileRight: Double = 0.0
-    var mouthPucker: Double = 0.0
+    // Armazena valores atuais indexados pelo Enum
+    var currentValues: [FaceGesture: Double] = [
+        .smileLeft: 0.0,
+        .smileRight: 0.0,
+        .pucker: 0.0
+    ]
+    
     var calibration = UserCalibration() {
         didSet { saveCalibration() }
     }
+    
     var isCameraDenied = false
     var triggerHaptic: Int = 0
     
@@ -47,86 +54,88 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     private var isPuckering = false
     private var lastUpdateTime: TimeInterval = 0
     
+    // Constante para UserDefaults (Evita Magic String)
+    private let kCalibrationKey = "UserCalibration"
+    
     override init() {
         super.init()
         loadCalibration()
     }
     
+    // ... (start, runSession, pause mantidos iguais) ...
+    
     func start(session: ARSession) {
         self.currentSession = session
-        
         switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            runSession(session)
+        case .authorized: runSession(session)
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 Task { @MainActor in
-                    if granted { self.runSession(session) }
-                    else { self.isCameraDenied = true }
+                    if granted { self.runSession(session) } else { self.isCameraDenied = true }
                 }
             }
-        case .denied, .restricted:
-            isCameraDenied = true
-        @unknown default:
-            break
+        case .denied, .restricted: isCameraDenied = true
+        @unknown default: break
         }
     }
     
     private func runSession(_ session: ARSession) {
         guard ARFaceTrackingConfiguration.isSupported else { return }
-        
         session.delegate = self
         let configuration = ARFaceTrackingConfiguration()
         configuration.isLightEstimationEnabled = false
         session.run(configuration, options: [.removeExistingAnchors, .resetTracking])
     }
     
-    func pause() {
-        currentSession?.pause()
-    }
+    func pause() { currentSession?.pause() }
     
     var hasSavedCalibration: Bool {
-        return UserDefaults.standard.data(forKey: "UserCalibration") != nil
+        return UserDefaults.standard.data(forKey: kCalibrationKey) != nil
     }
     
     private func saveCalibration() {
         if let encoded = try? JSONEncoder().encode(calibration) {
-            UserDefaults.standard.set(encoded, forKey: "UserCalibration")
+            UserDefaults.standard.set(encoded, forKey: kCalibrationKey)
         }
     }
     
     private func loadCalibration() {
-        if let savedData = UserDefaults.standard.data(forKey: "UserCalibration"),
+        if let savedData = UserDefaults.standard.data(forKey: kCalibrationKey),
            let loaded = try? JSONDecoder().decode(UserCalibration.self, from: savedData) {
             self.calibration = loaded
         }
     }
     
     func setCalibrationMax(for gesture: FaceGesture, value: Float) {
-        let val = Double(value)
-        switch gesture {
-        case .smileLeft: calibration.smileLeftMax = max(val, GestureConfig.minCalibrationValue)
-        case .smileRight: calibration.smileRightMax = max(val, GestureConfig.minCalibrationValue)
-        case .pucker: calibration.puckerMax = max(val, GestureConfig.minCalibrationValue)
-        }
+        calibration.thresholds[gesture] = max(Double(value), GestureConfig.minCalibrationValue)
     }
     
-    var isTriggeringLeft: Bool {
-        return smileLeft > (calibration.smileLeftMax * calibration.triggerFactor)
-    }
-    var isTriggeringRight: Bool {
-        return smileRight > (calibration.smileRightMax * calibration.triggerFactor)
-    }
-    var isTriggeringBack: Bool {
-        return mouthPucker > (calibration.puckerMax * calibration.triggerFactor)
+    // Helpers de Acesso Seguro
+    func getValue(for gesture: FaceGesture) -> Double {
+        return currentValues[gesture] ?? 0.0
     }
     
-    // MARK: - ARSessionDelegate Otimizado
+    func isTriggering(_ gesture: FaceGesture) -> Bool {
+        let current = getValue(for: gesture)
+        let max = calibration.thresholds[gesture] ?? 0.5
+        return current > (max * calibration.triggerFactor)
+    }
+    
+    // Atalhos para compatibilidade com a View
+    var isTriggeringLeft: Bool { isTriggering(.smileLeft) }
+    var isTriggeringRight: Bool { isTriggering(.smileRight) }
+    var isTriggeringBack: Bool { isTriggering(.pucker) }
+    
+    // Acesso direto para UI (CalibrationView)
+    var smileLeft: Double { getValue(for: .smileLeft) }
+    var smileRight: Double { getValue(for: .smileRight) }
+    var mouthPucker: Double { getValue(for: .pucker) }
+    
+    // MARK: - ARSessionDelegate
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
         let currentTime = ProcessInfo.processInfo.systemUptime
         
-        // Otimização: Evita criar Tasks excessivas (Throttle check rápido)
         Task { @MainActor in
             guard currentTime - self.lastUpdateTime > GestureConfig.throttleInterval else { return }
             self.lastUpdateTime = currentTime
@@ -135,33 +144,26 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
             let sRight = anchor.blendShapes[.mouthSmileRight]?.doubleValue ?? 0.0
             let pucker = anchor.blendShapes[.mouthPucker]?.doubleValue ?? 0.0
             
-            // Lógica de Dominância com Espelhamento (CORRIGIDO)
-            // Câmera Frontal = Espelho.
-            // O que o ARKit detecta como Esquerda (sLeft) é visto na tela como Direita.
+            // Lógica de Dominância
+            var newValues: [FaceGesture: Double] = [.smileLeft: 0.0, .smileRight: 0.0, .pucker: 0.0]
             
             if sLeft > GestureConfig.deadZone && sLeft > (sRight + GestureConfig.dominanceMargin) {
-                self.smileRight = sLeft // ARKit Left -> App Right
-                self.smileLeft = 0.0
-            }
-            else if sRight > GestureConfig.deadZone && sRight > (sLeft + GestureConfig.dominanceMargin) {
-                self.smileLeft = sRight // ARKit Right -> App Left
-                self.smileRight = 0.0
-            }
-            else {
-                self.smileLeft = 0.0
-                self.smileRight = 0.0
+                newValues[.smileRight] = sLeft // Espelhado: Left -> App Right
+            } else if sRight > GestureConfig.deadZone && sRight > (sLeft + GestureConfig.dominanceMargin) {
+                newValues[.smileLeft] = sRight // Espelhado: Right -> App Left
             }
             
             if pucker > GestureConfig.puckerThreshold {
-                self.mouthPucker = pucker
+                newValues[.pucker] = pucker
                 if !self.isPuckering {
                     self.triggerHaptic += 1
                     self.isPuckering = true
                 }
             } else {
-                self.mouthPucker = 0.0
                 self.isPuckering = false
             }
+            
+            self.currentValues = newValues
         }
     }
     

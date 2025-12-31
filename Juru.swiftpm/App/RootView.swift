@@ -1,3 +1,10 @@
+//
+//  RootView.swift
+//  Juru
+//
+//  Created by Antônio Paes De Andrade on 28/12/25.
+//
+
 import SwiftUI
 
 struct RootView: View {

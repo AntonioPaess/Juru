@@ -1,3 +1,10 @@
+//
+//  CalibrationView.swift
+//  Juru
+//
+//  Created by Antônio Paes De Andrade on 14/12/25.
+//
+
 import SwiftUI
 
 struct CalibrationView: View {
@@ -23,15 +30,15 @@ struct CalibrationView: View {
     // Configuração de Tempo Dinâmica
     var holdDuration: TimeInterval {
         switch state {
-        case .neutral: return 4.0
-        default: return 1.2
+        case .neutral: return 4.0 // Mais tempo para estabilizar o neutro
+        default: return 1.2       // Rápido para gestos ativos
         }
     }
     
     var body: some View {
         ZStack {
-            // NOTA: A Câmera (ARViewContainer) e o Color.black foram removidos daqui.
-            // Eles agora vivem no RootView para garantir persistência.
+            // REMOVIDO: ARViewContainer (Ele já está no RootView)
+            // REMOVIDO: Fundo sólido (Para permitir ver a câmera)
             
             // 1. Vinheta (Para focar no centro e dar contraste sobre a câmera do RootView)
             RadialGradient(
@@ -119,13 +126,14 @@ struct CalibrationView: View {
         }
     }
     
-    // MARK: - Lógica Principal (Mantida igual, apenas copiando os métodos auxiliares)
+    // MARK: - Lógica Principal
     private func handleLogic() {
         guard state != .finished else { return }
         let currentValue = getCurrentMetricValue()
         let percent = Int(currentValue * 100)
         feedbackText = "\(percent)%"
         
+        // No neutro, qualquer valor é válido para contar tempo. Nos gestos, precisa passar do threshold.
         let threshold: Float = (state == .neutral) ? -1.0 : 0.15
         
         if currentValue > threshold {
@@ -178,7 +186,7 @@ struct CalibrationView: View {
     
     private func getCurrentMetricValue() -> Float {
         switch state {
-        case .neutral: return 1.0
+        case .neutral: return 1.0 // Retorna 1.0 para encher a barra por tempo
         case .smileLeft: return Float(faceManager.smileLeft)
         case .smileRight: return Float(faceManager.smileRight)
         case .pucker: return Float(faceManager.mouthPucker)
@@ -217,7 +225,6 @@ struct CalibrationView: View {
     }
 }
 
-// Pequeno helper para os status pills
 struct StatusPill: View {
     let label: String
     let isActive: Bool

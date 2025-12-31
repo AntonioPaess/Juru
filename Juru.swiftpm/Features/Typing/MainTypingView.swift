@@ -1,3 +1,10 @@
+//
+//  MainTypingView.swift
+//  Juru
+//
+//  Created by Antônio Paes De Andrade on 24/12/25.
+//
+
 import SwiftUI
 import AVFoundation
 
@@ -11,13 +18,9 @@ struct MainTypingView: View {
     var body: some View {
         ZStack {
             // FUNDO DINÂMICO
+            // CORREÇÃO: Sem '$' aqui
             if vocabManager.isDarkMode {
                 Color.clear
-            } else {
-                Color.white.opacity(0.85)
-            }
-            
-            if vocabManager.isDarkMode {
                 RadialGradient(
                     colors: [.clear, .black.opacity(0.9)],
                     center: .center,
@@ -25,6 +28,8 @@ struct MainTypingView: View {
                     endRadius: 500
                 )
                 .ignoresSafeArea()
+            } else {
+                Color.white.opacity(0.85)
             }
             
             VStack(spacing: 16) {
@@ -46,6 +51,7 @@ struct MainTypingView: View {
                     // Ícone discreto
                     Image(systemName: "eye.fill")
                         .font(.title3)
+                        // CORREÇÃO: Sem '$' aqui
                         .foregroundStyle(vocabManager.isDarkMode ? .white.opacity(0.3) : .black.opacity(0.3))
                 }
                 .padding(.horizontal)
@@ -57,6 +63,7 @@ struct MainTypingView: View {
                         ScrollView {
                             Text(vocabManager.currentMessage.isEmpty ? "Start typing..." : vocabManager.currentMessage)
                                 .font(.system(size: 36, weight: .medium, design: .rounded))
+                                // CORREÇÃO: Sem '$' aqui
                                 .foregroundStyle(vocabManager.isDarkMode ? .white : .black)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding()
@@ -72,12 +79,11 @@ struct MainTypingView: View {
                 .cornerRadius(24)
                 .overlay(
                     RoundedRectangle(cornerRadius: 24)
+                        // CORREÇÃO: Sem '$' aqui
                         .stroke(vocabManager.isDarkMode ? .white.opacity(0.1) : .black.opacity(0.1), lineWidth: 1)
                 )
                 .padding(.horizontal)
                 .shadow(color: .black.opacity(0.1), radius: 10)
-                
-                // *** BOTÃO DE FALA REMOVIDO DAQUI ***
                 
                 Spacer()
                 
@@ -87,6 +93,7 @@ struct MainTypingView: View {
                         Text("SUGGESTIONS")
                             .font(.caption2)
                             .fontWeight(.bold)
+                            // CORREÇÃO: Sem '$' aqui
                             .foregroundStyle(vocabManager.isDarkMode ? .white.opacity(0.5) : .black.opacity(0.5))
                             .padding(.leading, 24)
                         
@@ -99,9 +106,11 @@ struct MainTypingView: View {
                                         .padding(.vertical, 10)
                                         .background(.ultraThinMaterial)
                                         .cornerRadius(12)
+                                        // CORREÇÃO: Sem '$' aqui
                                         .foregroundStyle(vocabManager.isDarkMode ? .white : .black)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 12)
+                                                // CORREÇÃO: Sem '$' aqui
                                                 .stroke(vocabManager.isDarkMode ? .white.opacity(0.3) : .black.opacity(0.1), lineWidth: 1)
                                         )
                                 }
@@ -114,21 +123,21 @@ struct MainTypingView: View {
                 
                 // --- INPUT CARDS ---
                 HStack(spacing: 16) {
-                    // ESQUERDA
                     TypingZoneCard(
                         text: vocabManager.leftLabel,
                         isActive: faceManager.isTriggeringLeft,
                         color: .cyan,
                         alignment: .leading,
+                        // CORREÇÃO: Sem '$' aqui
                         isDark: vocabManager.isDarkMode
                     )
                     
-                    // DIREITA
                     TypingZoneCard(
                         text: vocabManager.rightLabel,
                         isActive: faceManager.isTriggeringRight,
                         color: .pink,
                         alignment: .trailing,
+                        // CORREÇÃO: Sem '$' aqui
                         isDark: vocabManager.isDarkMode
                     )
                 }
@@ -138,13 +147,15 @@ struct MainTypingView: View {
                 // Rodapé
                 HStack {
                     Image(systemName: "mouth")
-                    Text("Pucker to Undo")
+                    Text("Pucker to Undo/Clear")
                 }
                 .font(.caption)
+                // CORREÇÃO: Sem '$' aqui
                 .foregroundStyle(vocabManager.isDarkMode ? .white.opacity(0.5) : .black.opacity(0.5))
                 .padding(.bottom, 10)
             }
         }
+        // CORREÇÃO: Sem '$' aqui
         .preferredColorScheme(vocabManager.isDarkMode ? .dark : .light)
         .onReceive(timer) { _ in
             vocabManager.update()
@@ -152,7 +163,7 @@ struct MainTypingView: View {
     }
 }
 
-// (Os componentes StatusDot e TypingZoneCard permanecem os mesmos da resposta anterior)
+// Componentes Auxiliares
 struct TypingZoneCard: View {
     let text: String
     let isActive: Bool

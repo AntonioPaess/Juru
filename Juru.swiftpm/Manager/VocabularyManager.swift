@@ -10,41 +10,47 @@ import SwiftUI
 import Observation
 import AVFoundation
 
+// Enum para segurança nos comandos
+enum AppCommand: String, CaseIterable {
+    case space = "Space"
+    case suggestions = "Suggestions"
+    case speak = "Speak"
+    case clear = "Clear"
+}
+
 @MainActor
 @Observable
 class VocabularyManager {
-    // MARK: - Dependências
+    // MARK: - Dependencies
     var faceManager: FaceTrackingManager
     private var trie = Trie()
-    var isDictionaryLoaded = false
     private let synthesizer = AVSpeechSynthesizer()
+    var isDictionaryLoaded = false
     
-    // Configurações
+    // MARK: - Configurações (AQUI ESTÁ A VARIÁVEL QUE FALTAVA)
     var isDarkMode: Bool = true
     
-    // MARK: - Estado
+    // MARK: - State
     var currentMessage: String = ""
     var suggestions: [String] = []
     
     // Navegação
-    var currentBranch: [String] = []
+    private var currentBranch: [String] = []
     private var branchHistory: [[String]] = []
     
-    // Etiquetas UI
-    var leftLabel: String = "Speller"
-    var rightLabel: String = "Quick Words"
+    // UI Labels
+    var leftLabel: String = ""
+    var rightLabel: String = ""
     
     // Estado Lógico
     var isSelectingWord: Bool = false
     private var selectionTask: Task<Void, Never>?
     
-    // MARK: - DADOS ESTÁTICOS
-    
+    // Dados
     let alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
     let quickPhrases = ["Yes", "No", "Pain", "Water"]
-    let editingCommands = ["Space", "Speak"]
+    let editingCommands = [AppCommand.space.rawValue, AppCommand.clear.rawValue, AppCommand.speak.rawValue]
     
-    // MARK: - Init & Setup
     init(faceManager: FaceTrackingManager) {
         self.faceManager = faceManager
         setupAudio()
@@ -154,27 +160,40 @@ class VocabularyManager {
     }
     
     private func executeLeafNode(_ item: String) {
-        switch item {
-        case "Space":
-            addSpace()
-        case "Speak":
-            speakCurrentMessage()
-            suggestions = []
-            resetToRoot()
-        case "Clear":
-            currentMessage = ""
-            suggestions = []
-            resetToRoot()
-        case "Yes", "No", "Pain", "Water":
-            speak(text: item)
-            currentMessage = ""; resetToRoot()
-        default:
-            if isSelectingWord { addWord(item) }
-            else { addCharacter(item) }
+        // Verifica se é um comando do sistema
+        if let command = AppCommand(rawValue: item) {
+            switch command {
+            case .space:
+                addSpace()
+            case .speak:
+                speakCurrentMessage()
+                suggestions = []
+                resetToRoot()
+            case .clear:
+                currentMessage = ""
+                suggestions = []
+                resetToRoot()
+            case .suggestions:
+                // Fallback caso apareça em algum menu antigo
+                break
+            }
+            return
         }
+        
+        // Verifica frases rápidas
+        if quickPhrases.contains(item) {
+            speak(text: item)
+            currentMessage = ""
+            resetToRoot()
+            return
+        }
+        
+        // Texto normal
+        if isSelectingWord { addWord(item) }
+        else { addCharacter(item) }
     }
     
-    // MARK: - Helpers de Navegação
+    // MARK: - Navegação Auxiliar
     private func startBranch(_ items: [String]) { currentBranch = items; updateLabels() }
     
     private func split(_ items: [String]) -> ([String], [String]) {
@@ -216,33 +235,19 @@ class VocabularyManager {
     // MARK: - Manipulação de Texto
     private func addCharacter(_ char: String) {
         let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? char.uppercased() : char.lowercased()
-        currentMessage.append(val)
-        updateSuggestions()
-        resetToRoot()
+        currentMessage.append(val); updateSuggestions(); resetToRoot()
     }
     
-    // CORREÇÃO AQUI: Substituição inteligente
     private func addWord(_ word: String) {
-        // Se a mensagem não está vazia e não termina com espaço,
-        // significa que estamos no meio de uma palavra (ex: "Hel").
-        // Removemos essa parte parcial antes de adicionar a palavra completa.
         if !currentMessage.isEmpty && !currentMessage.hasSuffix(" ") {
             if let lastSpaceIndex = currentMessage.lastIndex(of: " ") {
-                // Remove tudo depois do último espaço
                 currentMessage = String(currentMessage[...lastSpaceIndex])
             } else {
-                // Se não tem espaço, é a primeira palavra sendo digitada. Limpa tudo.
                 currentMessage = ""
             }
         }
-        
-        // Verifica se precisa capitalizar (início de frase)
-        let shouldCapitalize = currentMessage.isEmpty || currentMessage.hasSuffix(". ")
-        let val = shouldCapitalize ? word.capitalized : word.lowercased()
-        
-        currentMessage.append(val + " ")
-        suggestions = []
-        resetToRoot()
+        let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? word.capitalized : word.lowercased()
+        currentMessage.append(val + " "); suggestions = []; resetToRoot()
     }
     
     private func addSpace() { currentMessage.append(" "); updateSuggestions(); resetToRoot() }
