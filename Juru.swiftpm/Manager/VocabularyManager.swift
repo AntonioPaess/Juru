@@ -19,7 +19,7 @@ enum AppCommand: String, CaseIterable {
 
 @MainActor
 @Observable
-class VocabularyManager {
+class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
     // MARK: - Dependencies
     var faceManager: FaceTrackingManager
     private var trie = Trie()
@@ -29,6 +29,9 @@ class VocabularyManager {
     // MARK: - State
     var currentMessage: String = ""
     var suggestions: [String] = []
+    
+    // NOVO: Estado para animação do avatar
+    var isSpeaking: Bool = false
     
     private var currentBranch: [String] = []
     private var branchHistory: [[String]] = []
@@ -45,8 +48,14 @@ class VocabularyManager {
     
     init(faceManager: FaceTrackingManager) {
         self.faceManager = faceManager
+        super.init() // Necessário pois herdamos de NSObject
+        
         setupAudio()
         resetToRoot()
+        
+        // Configura o delegate para saber quando a fala começa/termina
+        synthesizer.delegate = self
+        
         Task { await loadDictionary() }
     }
     
@@ -55,8 +64,6 @@ class VocabularyManager {
         do {
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
             try session.setActive(true)
-            
-            // Força bruta para o alto-falante
             try session.overrideOutputAudioPort(.speaker)
         } catch {
             print("Audio setup error: \(error)")
@@ -269,10 +276,8 @@ class VocabularyManager {
         
         let session = AVAudioSession.sharedInstance()
         do {
-            // Reafirma a configuração
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            // Esmaga a saída para o Speaker novamente
             try session.overrideOutputAudioPort(.speaker)
         } catch {
             print("Speaker override failed: \(error)")
@@ -281,5 +286,19 @@ class VocabularyManager {
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         synthesizer.speak(utterance)
+    }
+    
+    // MARK: - AVSpeechSynthesizerDelegate
+    // Atualiza a UI na MainActor
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = true }
+    }
+    
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = false }
+    }
+    
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = false }
     }
 }

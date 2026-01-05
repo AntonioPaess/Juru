@@ -12,115 +12,147 @@ struct OnboardingView: View {
     var onFinished: () -> Void
     
     @State private var currentPage = 0
+    @State private var animateBlobs = false
     
     var body: some View {
         ZStack {
             Color.juruBackground.ignoresSafeArea()
             
-            // Decorative
-            GeometryReader { proxy in
-                Circle().fill(Color.juruTeal.opacity(0.1)).frame(width: 300, height: 300)
-                    .blur(radius: 60).offset(x: -100, y: -100)
-                Circle().fill(Color.juruCoral.opacity(0.1)).frame(width: 250, height: 250)
-                    .blur(radius: 60).offset(x: proxy.size.width - 150, y: proxy.size.height - 200)
+            // Dynamic Background (Breathing Blobs)
+            ZStack {
+                Circle()
+                    .fill(Color.juruTeal.opacity(0.15))
+                    .frame(width: 400, height: 400)
+                    .scaleEffect(animateBlobs ? 1.2 : 0.8)
+                    .offset(x: -100, y: -200)
+                    .blur(radius: 60)
+                
+                Circle()
+                    .fill(Color.juruCoral.opacity(0.15))
+                    .frame(width: 350, height: 350)
+                    .scaleEffect(animateBlobs ? 1.1 : 0.9)
+                    .offset(x: 150, y: 300)
+                    .blur(radius: 50)
             }
-            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 5.0).repeatForever(autoreverses: true), value: animateBlobs)
+            .onAppear { animateBlobs = true }
             
+            // Paged Content
             TabView(selection: $currentPage) {
-                // Page 1: Emotional Hook
-                WelcomeCard(
-                    icon: "heart.text.square.fill",
-                    title: "Voice for Everyone",
-                    description: "Juru was created for people with ALS, paralysis, and limited muscle mobility.\n\nWe believe communication is a fundamental human right.",
-                    accentColor: .juruCoral
-                ) { withAnimation { currentPage += 1 } }
+                // Page 1: Welcome
+                OnboardingCard(
+                    icon: "bubble.left.and.bubble.right.fill",
+                    title: "Hello, I'm Juru",
+                    description: "I help you speak using only your smiles and facial gestures. Communication belongs to everyone.",
+                    buttonTitle: "How does it work?",
+                    accentColor: .juruTeal,
+                    action: { nextPage() }
+                )
                 .tag(0)
                 
-                // Page 2: Concept
-                WelcomeCard(
+                // Page 2: Explanation
+                OnboardingCard(
                     icon: "face.smiling.fill",
-                    title: "Powered by Smiles",
-                    description: "Even when speech is difficult, facial micro-expressions often remain intact.\n\nJuru translates your smiles into words.",
-                    accentColor: .juruTeal
-                ) { withAnimation { currentPage += 1 } }
+                    title: "Smiles Become Words",
+                    description: "Juru detects micro-expressions. A gentle smile to the left or right allows you to select letters and words.",
+                    buttonTitle: "Got it, let's go",
+                    accentColor: .juruCoral,
+                    action: { nextPage() }
+                )
                 .tag(1)
                 
-                // Page 3: Environment Check
-                EnvironmentCheckPage(faceManager: faceManager) {
-                    onFinished()
-                }
+                // Page 3: Call to Action
+                OnboardingCard(
+                    icon: "slider.horizontal.3",
+                    title: "One Quick Setup",
+                    description: "To get started, I need to learn your unique way of smiling. Shall we do a quick calibration?",
+                    buttonTitle: "Calibrate Now",
+                    accentColor: .juruTeal,
+                    action: { onFinished() }
+                )
                 .tag(2)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: currentPage)
+            .tabViewStyle(.page(indexDisplayMode: .always))
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+        }
+        .transition(.opacity)
+    }
+    
+    func nextPage() {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            currentPage += 1
         }
     }
 }
 
-// Reuse the existing components from previous answers
-struct WelcomeCard: View {
+struct OnboardingCard: View {
     let icon: String
     let title: String
     let description: String
+    let buttonTitle: String
     let accentColor: Color
     let action: () -> Void
+    
     @State private var isAppearing = false
     
     var body: some View {
-        VStack(spacing: 30) {
+        VStack(spacing: 24) {
             Spacer()
-            ZStack {
-                Circle().fill(Color.white).frame(width: 160, height: 160)
-                    .shadow(color: accentColor.opacity(0.3), radius: 20, x: 0, y: 10)
-                Image(systemName: icon).font(.system(size: 70)).foregroundStyle(accentColor)
-                    .scaleEffect(isAppearing ? 1.0 : 0.5).opacity(isAppearing ? 1.0 : 0.0)
-            }
+            
+            // Hero Icon
+            Image(systemName: icon)
+                .font(.system(size: 80))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [accentColor, accentColor.opacity(0.6)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .padding(.bottom, 20)
+                .symbolEffect(.bounce, value: isAppearing)
+                .scaleEffect(isAppearing ? 1.0 : 0.5)
+                .opacity(isAppearing ? 1.0 : 0.0)
+            
+            // Titles
             VStack(spacing: 16) {
-                Text(title).font(.system(size: 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.juruText).multilineTextAlignment(.center)
-                Text(description).font(.body).multilineTextAlignment(.center)
-                    .foregroundStyle(Color.juruSecondaryText).padding(.horizontal, 24).lineSpacing(4)
+                Text(title)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color.juruText)
+                
+                Text(description)
+                    .font(.title3)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color.juruSecondaryText)
+                    .padding(.horizontal, 32)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(4)
             }
-            .offset(y: isAppearing ? 0 : 20).opacity(isAppearing ? 1.0 : 0.0)
+            .offset(y: isAppearing ? 0 : 20)
+            .opacity(isAppearing ? 1.0 : 0.0)
+            
             Spacer()
+            
+            // Pill Button
             Button(action: action) {
-                Text("Continue").font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity)
-                    .padding().background(accentColor).cornerRadius(20)
-                    .shadow(color: accentColor.opacity(0.3), radius: 10, y: 5)
+                Text(buttonTitle)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(accentColor)
+                    .clipShape(Capsule())
+                    .shadow(color: accentColor.opacity(0.4), radius: 12, y: 6)
             }
-            .padding(.horizontal, 40).padding(.bottom, 60)
+            .padding(.horizontal, 40)
+            .padding(.bottom, 50)
+            .opacity(isAppearing ? 1.0 : 0.0)
         }
-        .onAppear { withAnimation(.spring(duration: 0.8)) { isAppearing = true } }
-    }
-}
-
-struct EnvironmentCheckPage: View {
-    var faceManager: FaceTrackingManager
-    var onFinish: () -> Void
-    var body: some View {
-        VStack(spacing: 30) {
-            Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 32).stroke(Color.juruText.opacity(0.1), lineWidth: 2)
-                    .frame(width: 240, height: 320).background(Color.black.opacity(0.05)).cornerRadius(32)
-                VStack {
-                    Image(systemName: "sun.max.fill").font(.system(size: 60))
-                        .foregroundStyle(Color.juruCoral).symbolEffect(.variableColor.iterative.reversing)
-                    Text("Lighting Check").font(.headline).foregroundStyle(Color.juruSecondaryText).padding(.top, 10)
-                }
+        .onAppear {
+            withAnimation(.spring(duration: 0.8)) {
+                isAppearing = true
             }
-            VStack(spacing: 12) {
-                Text("One Last Thing").font(.system(size: 32, weight: .bold, design: .rounded)).foregroundStyle(Color.juruText)
-                Text("Ensure your face is well-lit. Shadows can affect detection.").multilineTextAlignment(.center)
-                    .foregroundStyle(Color.juruSecondaryText).padding(.horizontal)
-            }
-            Spacer()
-            Button(action: onFinish) {
-                HStack { Text("Start Calibration"); Image(systemName: "arrow.right") }
-                    .font(.headline).foregroundStyle(Color.juruBackground).frame(maxWidth: .infinity)
-                    .padding().background(Color.juruText).cornerRadius(20)
-            }
-            .padding(.horizontal, 40).padding(.bottom, 60)
         }
     }
 }
