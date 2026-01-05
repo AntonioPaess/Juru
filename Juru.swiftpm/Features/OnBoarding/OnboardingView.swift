@@ -18,7 +18,7 @@ struct OnboardingView: View {
         ZStack {
             Color.juruBackground.ignoresSafeArea()
             
-            // Dynamic Background (Breathing Blobs)
+            // Fundo Dinâmico (Blobs respirando)
             ZStack {
                 Circle()
                     .fill(Color.juruTeal.opacity(0.15))
@@ -37,36 +37,40 @@ struct OnboardingView: View {
             .animation(.easeInOut(duration: 5.0).repeatForever(autoreverses: true), value: animateBlobs)
             .onAppear { animateBlobs = true }
             
-            // Paged Content
+            // Conteúdo Paginado (A Historinha)
             TabView(selection: $currentPage) {
-                // Page 1: Welcome
+                
+                // ATO 1: A ORIGEM (Usando sua Logo)
                 OnboardingCard(
-                    icon: "bubble.left.and.bubble.right.fill",
-                    title: "Hello, I'm Juru",
-                    description: "I help you speak using only your smiles and facial gestures. Communication belongs to everyone.",
-                    buttonTitle: "How does it work?",
+                    customImage: "Juru-White", // Sua logo aqui
+                    systemIcon: nil,
+                    title: "Roots of Speech",
+                    description: "In the Tupi language, 'Juru' means Mouth.\nIt represents the sacred origin of our voice and connection.",
+                    buttonTitle: "Discover Juru",
                     accentColor: .juruTeal,
                     action: { nextPage() }
                 )
                 .tag(0)
                 
-                // Page 2: Explanation
+                // ATO 2: A TRANSFORMAÇÃO
                 OnboardingCard(
-                    icon: "face.smiling.fill",
-                    title: "Smiles Become Words",
-                    description: "Juru detects micro-expressions. A gentle smile to the left or right allows you to select letters and words.",
-                    buttonTitle: "Got it, let's go",
+                    customImage: nil,
+                    systemIcon: "mouth.fill", // Ícone de sorriso/fala
+                    title: "Voice through Smiles",
+                    description: "We believe your smile has power.\nJuru transforms your facial gestures into words, giving you a new way to speak.",
+                    buttonTitle: "How it works",
                     accentColor: .juruCoral,
                     action: { nextPage() }
                 )
                 .tag(1)
                 
-                // Page 3: Call to Action
+                // ATO 3: A AÇÃO
                 OnboardingCard(
-                    icon: "slider.horizontal.3",
-                    title: "One Quick Setup",
-                    description: "To get started, I need to learn your unique way of smiling. Shall we do a quick calibration?",
-                    buttonTitle: "Calibrate Now",
+                    customImage: nil,
+                    systemIcon: "face.smiling.inverse", // Ícone técnico de calibração
+                    title: "Let's Find Your Voice",
+                    description: "To start, I need to learn your unique smile.\nIt takes just a few seconds to calibrate.",
+                    buttonTitle: "Start Calibration",
                     accentColor: .juruTeal,
                     action: { onFinished() }
                 )
@@ -85,8 +89,12 @@ struct OnboardingView: View {
     }
 }
 
+// MARK: - Card Component Atualizado
 struct OnboardingCard: View {
-    let icon: String
+    // Agora aceita ou imagem customizada (Logo) ou ícone do sistema
+    let customImage: String?
+    let systemIcon: String?
+    
     let title: String
     let description: String
     let buttonTitle: String
@@ -99,45 +107,57 @@ struct OnboardingCard: View {
         VStack(spacing: 24) {
             Spacer()
             
-            // Hero Icon
-            Image(systemName: icon)
-                .font(.system(size: 80))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [accentColor, accentColor.opacity(0.6)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            // Lógica de Ícone vs Logo
+            if let customImage = customImage {
+                // Exibe a Logo do App
+                Image(customImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 120) // Tamanho bom para logo
+                    .shadow(color: accentColor.opacity(0.5), radius: 20, y: 10)
+                    .scaleEffect(isAppearing ? 1.0 : 0.5)
+                    .opacity(isAppearing ? 1.0 : 0.0)
+            } else if let systemIcon = systemIcon {
+                // Exibe Ícones SF Symbols
+                Image(systemName: systemIcon)
+                    .font(.system(size: 90))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [accentColor, accentColor.opacity(0.6)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-                .padding(.bottom, 20)
-                .symbolEffect(.bounce, value: isAppearing)
-                .scaleEffect(isAppearing ? 1.0 : 0.5)
-                .opacity(isAppearing ? 1.0 : 0.0)
+                    .padding(.bottom, 20)
+                    .symbolEffect(.bounce, value: isAppearing)
+                    .scaleEffect(isAppearing ? 1.0 : 0.5)
+                    .opacity(isAppearing ? 1.0 : 0.0)
+            }
             
-            // Titles
+            // Títulos e Textos
             VStack(spacing: 16) {
                 Text(title)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color.juruText)
                 
                 Text(description)
-                    .font(.title3)
+                    .font(.title3) // Tamanho legível e elegante
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color.juruSecondaryText)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, 40)
                     .fixedSize(horizontal: false, vertical: true)
-                    .lineSpacing(4)
+                    .lineSpacing(6) // Mais respiro entre linhas
             }
             .offset(y: isAppearing ? 0 : 20)
             .opacity(isAppearing ? 1.0 : 0.0)
             
             Spacer()
             
-            // Pill Button
+            // Botão Principal
             Button(action: action) {
                 Text(buttonTitle)
-                    .font(.headline.weight(.semibold))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(Color.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)

@@ -71,7 +71,7 @@ struct RootView: View {
                         faceManager.calibration = UserCalibration()
                         
                         // 2. Marca onboarding como feito
-                        hasCompletedOnboarding = true
+//                        hasCompletedOnboarding = true
                         
                         // 3. Fecha todas as telas modais
                         withAnimation {
