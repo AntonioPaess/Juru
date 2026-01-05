@@ -10,11 +10,11 @@ import SwiftUI
 struct RootView: View {
     var faceManager: FaceTrackingManager
     @Binding var vocabularyManager: VocabularyManager?
-    
-    @Environment(\.scenePhase) var scenePhase
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
     enum AppFlow {
         case loading
+        case onboarding
         case permissionDenied
         case calibration
         case mainApp
@@ -23,81 +23,71 @@ struct RootView: View {
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Camera Background
             if currentFlow != .permissionDenied {
                 ARViewContainer(manager: faceManager)
                     .ignoresSafeArea()
-                    .opacity(currentFlow == .loading ? 0.0 : 1.0)
             }
             
-            switch currentFlow {
-            case .loading:
-                JuruLoadingView()
-                    .onAppear { handleLoadingSequence() }
-                
-            case .permissionDenied:
-                PermissionDeniedView()
-                
-            case .calibration:
-                CalibrationView(
-                    faceManager: faceManager,
-                    onCalibrationComplete: {
-                        withAnimation { currentFlow = .mainApp }
+            // UI Layer
+            Group {
+                switch currentFlow {
+                case .loading:
+                    JuruLoadingView()
+                        .onAppear { handleLoadingSequence() }
+                    
+                case .onboarding:
+                    OnboardingView(faceManager: faceManager) {
+//                        hasCompletedOnboarding = true para testes decomentar depois
+                        withAnimation { currentFlow = .calibration }
                     }
-                )
-                
-            case .mainApp:
-                if let vocab = vocabularyManager {
-                    MainTypingView(vocabManager: vocab, faceManager: faceManager)
-                } else {
-                    ContentUnavailableView(
-                        "Vocabulary Error",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text("Could not load language data.")
+                    
+                case .permissionDenied:
+                    PermissionDeniedView()
+                    
+                case .calibration:
+                    CalibrationView(
+                        faceManager: faceManager,
+                        onCalibrationComplete: {
+                            withAnimation { currentFlow = .mainApp }
+                        }
                     )
+                    
+                case .mainApp:
+                    if let vocab = vocabularyManager {
+                        MainTypingView(vocabManager: vocab, faceManager: faceManager)
+                    } else {
+                        ContentUnavailableView("Error", systemImage: "exclamationmark.triangle")
+                    }
                 }
             }
+            .background(Color.juruBackground.ignoresSafeArea())
+            .transition(.opacity)
         }
-        .animation(.easeInOut, value: currentFlow)
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background {
-                faceManager.pause()
-            } else if newPhase == .active {
-                if let session = faceManager.currentSession {
-                    faceManager.start(session: session)
-                }
-            }
-        }
-        .onChange(of: faceManager.isCameraDenied) { _, denied in
-            if denied { currentFlow = .permissionDenied }
-        }
+        .animation(.easeInOut(duration: 0.5), value: currentFlow)
     }
     
     private func handleLoadingSequence() {
         if vocabularyManager == nil {
             vocabularyManager = VocabularyManager(faceManager: faceManager)
         }
-        
         Task {
             try? await Task.sleep(for: .seconds(1.5))
             await checkPrerequisites()
         }
     }
     
+    @MainActor
     private func checkPrerequisites() async {
         if faceManager.isCameraDenied {
             currentFlow = .permissionDenied
             return
         }
         
-        if faceManager.hasSavedCalibration {
-            let result = await BiometricAuth.authenticate()
-            switch result {
-            case .success(true):
-                withAnimation { currentFlow = .mainApp }
-            case .success(false), .failure:
-                withAnimation { currentFlow = .calibration }
-            }
+        if !hasCompletedOnboarding {
+            withAnimation { currentFlow = .onboarding }
+        } else if faceManager.hasSavedCalibration {
+            withAnimation { currentFlow = .mainApp }
         } else {
             withAnimation { currentFlow = .calibration }
         }

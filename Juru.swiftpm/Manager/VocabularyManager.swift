@@ -51,8 +51,16 @@ class VocabularyManager {
     }
     
     private func setupAudio() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
+            try session.setActive(true)
+            
+            // Força bruta para o alto-falante
+            try session.overrideOutputAudioPort(.speaker)
+        } catch {
+            print("Audio setup error: \(error)")
+        }
     }
     
     private func loadDictionary() async {
@@ -111,7 +119,7 @@ class VocabularyManager {
         }
     }
     
-    // MARK: - Lógica Contextual
+    // MARK: - Context Logic
     private func handleSelection(isLeft: Bool) {
         if currentBranch.isEmpty {
             addToHistory([])
@@ -180,7 +188,7 @@ class VocabularyManager {
         else { addCharacter(item) }
     }
     
-    // MARK: - Navegação Auxiliar
+    // MARK: - Aux Navigation
     private func startBranch(_ items: [String]) { currentBranch = items; updateLabels() }
     
     private func split(_ items: [String]) -> ([String], [String]) {
@@ -215,11 +223,11 @@ class VocabularyManager {
     private func resetToRoot() {
         currentBranch = []; branchHistory = []; isSelectingWord = false
         updateSuggestions()
-        leftLabel = "A - Z"
+        leftLabel = "Letters"
         rightLabel = currentMessage.isEmpty ? "Quick Words" : (suggestions.isEmpty ? "Edit & Speak" : "Predict & Edit")
     }
     
-    // MARK: - Manipulação de Texto
+    // MARK: - Text Manipulation
     private func addCharacter(_ char: String) {
         let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? char.uppercased() : char.lowercased()
         currentMessage.append(val); updateSuggestions(); resetToRoot()
@@ -258,6 +266,18 @@ class VocabularyManager {
     
     func speak(text: String) {
         if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
+        
+        let session = AVAudioSession.sharedInstance()
+        do {
+            // Reafirma a configuração
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            // Esmaga a saída para o Speaker novamente
+            try session.overrideOutputAudioPort(.speaker)
+        } catch {
+            print("Speaker override failed: \(error)")
+        }
+        
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         synthesizer.speak(utterance)
