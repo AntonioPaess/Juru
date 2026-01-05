@@ -12,33 +12,37 @@ struct RootView: View {
     @Binding var vocabularyManager: VocabularyManager?
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
+    // Removemos o case .loading
     enum AppFlow {
-        case loading
+        case checking // Estado rápido e invisível apenas para decisão
         case onboarding
         case permissionDenied
         case calibration
         case mainApp
     }
-    @State private var currentFlow: AppFlow = .loading
+    
+    // Inicia verificando, sem tela de carregamento visual
+    @State private var currentFlow: AppFlow = .checking
     
     var body: some View {
         ZStack {
-            // Camera Background
+            // A câmera roda no fundo para tracking (exceto se negado)
             if currentFlow != .permissionDenied {
                 ARViewContainer(manager: faceManager)
                     .ignoresSafeArea()
             }
             
-            // UI Layer
+            // Camada de UI
             Group {
                 switch currentFlow {
-                case .loading:
-                    JuruLoadingView()
-                        .onAppear { handleLoadingSequence() }
+                case .checking:
+                    // Mantém o fundo da marca enquanto decide (é imperceptível)
+                    Color.juruBackground.ignoresSafeArea()
+                        .task { await setupApp() }
                     
                 case .onboarding:
                     OnboardingView(faceManager: faceManager) {
-//                        hasCompletedOnboarding = true para testes decomentar depois
+//                        hasCompletedOnboarding = true
                         withAnimation { currentFlow = .calibration }
                     }
                     
@@ -57,39 +61,36 @@ struct RootView: View {
                     if let vocab = vocabularyManager {
                         MainTypingView(vocabManager: vocab, faceManager: faceManager)
                     } else {
-                        ContentUnavailableView("Error", systemImage: "exclamationmark.triangle")
+                        // Fallback de segurança apenas se houver erro
+                        Color.juruBackground.ignoresSafeArea()
                     }
                 }
             }
-            .background(Color.juruBackground.ignoresSafeArea())
             .transition(.opacity)
         }
         .animation(.easeInOut(duration: 0.5), value: currentFlow)
     }
     
-    private func handleLoadingSequence() {
+    @MainActor
+    private func setupApp() async {
+        // 1. Inicializa o VocabularyManager imediatamente (sem delay artificial)
         if vocabularyManager == nil {
             vocabularyManager = VocabularyManager(faceManager: faceManager)
         }
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            await checkPrerequisites()
-        }
-    }
-    
-    @MainActor
-    private func checkPrerequisites() async {
+        
+        // 2. Verifica permissões
         if faceManager.isCameraDenied {
             currentFlow = .permissionDenied
             return
         }
         
+        // 3. Decide a navegação instantaneamente
         if !hasCompletedOnboarding {
-            withAnimation { currentFlow = .onboarding }
+            currentFlow = .onboarding
         } else if faceManager.hasSavedCalibration {
-            withAnimation { currentFlow = .mainApp }
+            currentFlow = .mainApp
         } else {
-            withAnimation { currentFlow = .calibration }
+            currentFlow = .calibration
         }
     }
 }
