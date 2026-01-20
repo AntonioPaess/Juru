@@ -7,10 +7,22 @@
 
 import SwiftUI
 
+// Enum para controlar o foco do tutorial
+enum TutorialFocus: Equatable {
+    case none
+    case leftButton
+    case rightButton
+    case suggestions
+    case speak
+}
+
 struct MainTypingView: View {
     @Bindable var vocabManager: VocabularyManager
     var faceManager: FaceTrackingManager
     var isPaused: Bool
+    
+    // Controle de Foco para o Tutorial
+    var tutorialFocus: TutorialFocus = .none
     
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.horizontalSizeClass) var sizeClass
@@ -28,7 +40,7 @@ struct MainTypingView: View {
                 
                 // 2. HEADER
                 HStack {
-                    // LOGO OFICIAL
+                    // Logo Oficial (Assets)
                     Image("Juru-White")
                         .resizable()
                         .scaledToFit()
@@ -38,48 +50,58 @@ struct MainTypingView: View {
                     Spacer()
                     
                     if faceManager.isTriggeringBack {
-                        Label("Undo Ready", systemImage: "arrow.uturn.backward")
+                        Label("Undo", systemImage: "arrow.uturn.backward")
                             .font(.caption.bold())
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(Color.juruCoral)
                             .clipShape(Capsule())
-                            .shadow(color: .juruCoral.opacity(0.4), radius: 8, y: 4)
-                            .transition(.scale.combined(with: .opacity))
                     }
                 }
                 .padding(.horizontal, 30)
                 .padding(.top, 20)
                 .padding(.bottom, 10)
+                .opacity(shouldDim(.none) ? 0.3 : 1.0) // Dimming se não for foco
                 
                 // 3. TEXT OUTPUT
                 TypingDisplayCard(text: vocabManager.currentMessage)
                     .frame(maxHeight: isPad ? 240 : 180)
                     .padding(.horizontal, isPad ? 80 : 24)
                     .layoutPriority(1)
+                    .opacity(shouldDim(.none) ? 0.3 : 1.0)
                 
-                // 4. SUGGESTIONS
+                // 4. SUGGESTIONS (Com suporte a Foco)
                 if !vocabManager.suggestions.isEmpty {
                     SuggestionBar(suggestions: vocabManager.suggestions)
                         .padding(.top, 16)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .opacity(shouldDim(.suggestions) ? 0.3 : 1.0)
+                        .overlay(
+                            // Borda Dourada se for o foco do tutorial
+                            tutorialFocus == .suggestions ?
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.juruGold, lineWidth: 3)
+                                .padding(.horizontal, 20)
+                            : nil
+                        )
                 }
                 
                 Spacer()
                 
-                // 5. VISUAL FEEDBACK (Avatar Falando/Sorrindo)
+                // 5. VISUAL FEEDBACK
                 FeedbackCenter(
                     faceManager: faceManager,
-                    isSpeaking: vocabManager.isSpeaking // Conecta o estado de fala
+                    isSpeaking: vocabManager.isSpeaking
                 )
                 .padding(.vertical, 20)
                 .scaleEffect(isPad ? 1.3 : 1.0)
+                .opacity(shouldDim(.none) ? 0.5 : 1.0)
                 
                 Spacer()
                 
-                // 6. ACTION CARDS
+                // 6. ACTION CARDS (Com suporte a Foco)
                 HStack(spacing: 24) {
+                    // BOTÃO ESQUERDO
                     ActionCard(
                         title: vocabManager.leftLabel,
                         icon: "arrow.left",
@@ -87,13 +109,32 @@ struct MainTypingView: View {
                         isActive: faceManager.isTriggeringLeft,
                         alignment: .leading
                     )
+                    .opacity(shouldDim(.leftButton) ? 0.3 : 1.0)
+                    .scaleEffect(tutorialFocus == .leftButton ? 1.05 : 1.0)
+                    .overlay(
+                        tutorialFocus == .leftButton ?
+                        RoundedRectangle(cornerRadius: 28)
+                            .stroke(Color.juruGold, lineWidth: 4)
+                            .shadow(color: .juruGold, radius: 10)
+                        : nil
+                    )
                     
+                    // BOTÃO DIREITO
                     ActionCard(
                         title: vocabManager.rightLabel,
                         icon: "arrow.right",
                         color: .juruCoral,
                         isActive: faceManager.isTriggeringRight,
                         alignment: .trailing
+                    )
+                    .opacity(shouldDim(.rightButton) ? 0.3 : 1.0)
+                    .scaleEffect(tutorialFocus == .rightButton ? 1.05 : 1.0)
+                    .overlay(
+                        tutorialFocus == .rightButton ?
+                        RoundedRectangle(cornerRadius: 28)
+                            .stroke(Color.juruGold, lineWidth: 4)
+                            .shadow(color: .juruGold, radius: 10)
+                        : nil
                     )
                 }
                 .frame(height: 200)
@@ -114,12 +155,17 @@ struct MainTypingView: View {
         .onReceive(timer) { _ in
             if !isPaused { vocabManager.update() }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: vocabManager.suggestions)
-        .animation(.default, value: faceManager.isTriggeringBack)
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: tutorialFocus)
+    }
+    
+    // Helper para saber se deve escurecer um elemento durante o tutorial
+    func shouldDim(_ element: TutorialFocus) -> Bool {
+        if tutorialFocus == .none { return false } // Se não tem tutorial, tudo aceso
+        return tutorialFocus != element
     }
 }
 
-// MARK: - Components Visuais
+// MARK: - SUBVIEWS (Componentes Visuais)
 
 struct AmbientBackground: View {
     @Environment(\.colorScheme) var colorScheme
@@ -129,6 +175,7 @@ struct AmbientBackground: View {
             Color.juruBackground.ignoresSafeArea()
             
             GeometryReader { proxy in
+                // Blobs suaves para dar vida ao fundo
                 Circle()
                     .fill(Color.juruTeal.opacity(0.08))
                     .frame(width: 600, height: 600)
@@ -245,7 +292,10 @@ struct FeedbackCenter: View {
                     .shadow(color: Color.black.opacity(0.15), radius: 15, y: 8)
                     .frame(width: 120, height: 120)
                 
-                JuruAvatarView(faceManager: faceManager, size: 100)
+                JuruAvatarView(
+                    faceManager: faceManager,
+                    size: 100
+                )
             }
             
             IntensityGauge(value: faceManager.smileRight, color: .juruCoral, isLeft: false)
