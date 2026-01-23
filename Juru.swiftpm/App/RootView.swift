@@ -86,37 +86,37 @@ struct RootView: View {
                 }
             }
             
-            // CAMADA 3: DEBUGGER
-            #if targetEnvironment(simulator)
-            VStack {
-                Spacer()
-                if isDebugExpanded {
-                    DebugControls(
-                        faceManager: faceManager,
-                        onSkipAll: {
-                            faceManager.calibration = UserCalibration()
-                            withAnimation { currentState = .mainApp }
-                        },
-                        onStartTutorial: {
-                            faceManager.calibration = UserCalibration()
-                            withAnimation { currentState = .tutorial }
-                        },
-                        onMinimize: { withAnimation(.spring) { isDebugExpanded = false } }
-                    )
-                    .padding(.bottom, 20)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    Button { withAnimation(.spring) { isDebugExpanded = true } } label: {
-                        Image(systemName: "ladybug.fill")
-                            .font(.title2).foregroundStyle(.white).frame(width: 50, height: 50)
-                            .background(Color.juruTeal).clipShape(Circle()).shadow(radius: 10)
-                    }
-                    .padding(.bottom, 20)
-                    .transition(.scale)
-                }
-            }
-            .zIndex(999)
-            #endif
+//            // CAMADA 3: DEBUGGER
+//            #if targetEnvironment(simulator)
+//            VStack {
+//                Spacer()
+//                if isDebugExpanded {
+//                    DebugControls(
+//                        faceManager: faceManager,
+//                        onSkipAll: {
+//                            faceManager.calibration = UserCalibration()
+//                            withAnimation { currentState = .mainApp }
+//                        },
+//                        onStartTutorial: {
+//                            faceManager.calibration = UserCalibration()
+//                            withAnimation { currentState = .tutorial }
+//                        },
+//                        onMinimize: { withAnimation(.spring) { isDebugExpanded = false } }
+//                    )
+//                    .padding(.bottom, 20)
+//                    .transition(.move(edge: .bottom).combined(with: .opacity))
+//                } else {
+//                    Button { withAnimation(.spring) { isDebugExpanded = true } } label: {
+//                        Image(systemName: "ladybug.fill")
+//                            .font(.title2).foregroundStyle(.white).frame(width: 50, height: 50)
+//                            .background(Color.juruTeal).clipShape(Circle()).shadow(radius: 10)
+//                    }
+//                    .padding(.bottom, 20)
+//                    .transition(.scale)
+//                }
+//            }
+//            .zIndex(999)
+//            #endif
         }
         .task { await setupApp() }
     }

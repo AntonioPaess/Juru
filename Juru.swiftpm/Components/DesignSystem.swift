@@ -9,72 +9,51 @@ import SwiftUI
 import UIKit
 
 extension Color {
-    // MARK: - Cores da Marca (Serenidade & Natureza)
-    
-    // ESQUERDA: Teal
-    // Light: Verde-azulado sóbrio.
-    // Dark: Sálvia Profundo (Natureza à noite, não neon).
     static var juruTeal: Color {
         Color(UIColor { traitCollection in
             return traitCollection.userInterfaceStyle == .dark
-            ? UIColor(red: 0.25, green: 0.65, blue: 0.60, alpha: 1.0) // Sálvia Suave
-            : UIColor(red: 0.00, green: 0.50, blue: 0.50, alpha: 1.0) // Deep Teal
+            ? UIColor(red: 0.25, green: 0.65, blue: 0.60, alpha: 1.0)
+            : UIColor(red: 0.00, green: 0.50, blue: 0.50, alpha: 1.0)
         })
     }
     
-    // DIREITA: Coral
-    // Light: Terracota.
-    // Dark: Salmão Queimado (Acolhedor).
     static var juruCoral: Color {
         Color(UIColor { traitCollection in
             return traitCollection.userInterfaceStyle == .dark
-            ? UIColor(red: 0.90, green: 0.55, blue: 0.50, alpha: 1.0) // Salmão Suave
-            : UIColor(red: 0.90, green: 0.35, blue: 0.30, alpha: 1.0) // Deep Coral
+            ? UIColor(red: 0.90, green: 0.55, blue: 0.50, alpha: 1.0)
+            : UIColor(red: 0.90, green: 0.35, blue: 0.30, alpha: 1.0)
         })
     }
     
-    // CENTRO: Gold
-    // Light: Mel.
-    // Dark: Ocre Suave (Luz de vela).
     static var juruGold: Color {
         Color(UIColor { traitCollection in
             return traitCollection.userInterfaceStyle == .dark
-            ? UIColor(red: 0.95, green: 0.80, blue: 0.40, alpha: 1.0) // Soft Gold
-            : UIColor(red: 0.85, green: 0.65, blue: 0.13, alpha: 1.0) // Goldenrod
+            ? UIColor(red: 0.95, green: 0.80, blue: 0.40, alpha: 1.0)
+            : UIColor(red: 0.85, green: 0.65, blue: 0.13, alpha: 1.0)
         })
     }
 
-    // MARK: - Fundos e Superfícies
-    
-    // Light: Areia Quente.
-    // Dark: Noite na Floresta (Verde muito escuro e fosco, não preto).
     static var juruBackground: Color {
         Color(UIColor { traitCollection in
             return traitCollection.userInterfaceStyle == .dark
-            ? UIColor(red: 0.08, green: 0.12, blue: 0.11, alpha: 1.0) // Deep Matte Forest
-            : UIColor(red: 0.96, green: 0.96, blue: 0.94, alpha: 1.0) // Warm Sand
+            ? UIColor(red: 0.08, green: 0.12, blue: 0.11, alpha: 1.0)
+            : UIColor(red: 0.96, green: 0.96, blue: 0.94, alpha: 1.0)
         })
     }
     
-    // Light: Branco Puro.
-    // Dark: Verde Musgo Escuro (Camuflado).
     static var juruCardBackground: Color {
         Color(UIColor { traitCollection in
             return traitCollection.userInterfaceStyle == .dark
-            ? UIColor(red: 0.12, green: 0.18, blue: 0.17, alpha: 1.0) // Moss Card
-            : UIColor.white // Pure White
+            ? UIColor(red: 0.12, green: 0.18, blue: 0.17, alpha: 1.0)
+            : UIColor.white
         })
     }
     
-    // MARK: - Tipografia (Leitura Confortável)
-    
-    // Light: Verde Petróleo Escuro (Não preto).
-    // Dark: Marfim/Osso (Não branco puro).
     static var juruText: Color {
         Color(UIColor { traitCollection in
             return traitCollection.userInterfaceStyle == .dark
-            ? UIColor(red: 0.92, green: 0.92, blue: 0.88, alpha: 1.0) // Ivory
-            : UIColor(red: 0.10, green: 0.20, blue: 0.20, alpha: 1.0) // Deep Slate
+            ? UIColor(red: 0.92, green: 0.92, blue: 0.88, alpha: 1.0)
+            : UIColor(red: 0.10, green: 0.20, blue: 0.20, alpha: 1.0)
         })
     }
     
@@ -86,11 +65,8 @@ extension Color {
         })
     }
     
-    // Mantido para compatibilidade
     static let juruLead = Color(red: 0.184, green: 0.31, blue: 0.31)
 }
-
-// MARK: - Modifiers (Sombras Suaves)
 
 struct JuruCardModifier: ViewModifier {
     let isActive: Bool
@@ -116,13 +92,17 @@ struct JuruCardModifier: ViewModifier {
     
     private var borderColor: Color {
         if isActive { return .juruTeal }
-        // Bordas muito sutis para manter a leveza
         return colorScheme == .dark ? .white.opacity(0.08) : .black.opacity(0.04)
     }
     
     private var shadowColor: Color {
         if isActive { return .juruTeal.opacity(0.3) }
-        // Sombras coloridas (não pretas) para dar ar orgânico
         return colorScheme == .dark ? Color.black.opacity(0.4) : Color.juruLead.opacity(0.08)
+    }
+}
+
+extension Font {
+    static func juruFont(_ style: Font.TextStyle, weight: Font.Weight = .regular) -> Font {
+        return .system(style, design: .rounded).weight(weight)
     }
 }

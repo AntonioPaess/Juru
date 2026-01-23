@@ -10,117 +10,137 @@ import SwiftUI
 struct JuruAvatarView: View {
     var faceManager: FaceTrackingManager
     
-    var manualSmileLeft: Double? = nil
-    var manualSmileRight: Double? = nil
+    var manualBrowUp: Double? = nil
     var manualPucker: Double? = nil
     
     var size: CGFloat = 200
     var color: Color = .juruTeal
     
     @State private var isBlinking = false
-    @State private var blinkTimer = Timer.publish(every: 4.0, on: .main, in: .common).autoconnect()
+    @State private var blinkTimer = Timer.publish(every: 3.5, on: .main, in: .common).autoconnect()
+    
+    var effectiveBrowUp: Double { manualBrowUp ?? faceManager.browUp }
+    var effectivePucker: Double { manualPucker ?? faceManager.mouthPucker }
     
     var body: some View {
         ZStack {
             Circle()
-                .fill(Color.juruCardBackground)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.juruCardBackground, Color.juruCardBackground.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .frame(width: size, height: size)
-                .shadow(color: color.opacity(0.3), radius: 20, y: 10)
+                .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 15)
                 .overlay(
                     Circle()
-                        .stroke(color.opacity(0.1), lineWidth: 4)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [.white.opacity(0.5), .white.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
                 )
             
-            HStack(spacing: size * 0.3) {
-                EyeView(isBlinking: isBlinking, isSmiling: effectiveSmileLeft > 0.2)
-                EyeView(isBlinking: isBlinking, isSmiling: effectiveSmileRight > 0.2)
+            VStack(spacing: size * 0.15) {
+                HStack(spacing: size * 0.35) {
+                    EyeComposite(isBlinking: isBlinking, browUp: effectiveBrowUp, color: color, size: size * 0.12)
+                    EyeComposite(isBlinking: isBlinking, browUp: effectiveBrowUp, color: color, size: size * 0.12)
+                }
+                .offset(y: size * 0.05)
+                
+                MouthView(pucker: effectivePucker, color: color)
+                    .frame(width: size * 0.3, height: size * 0.2)
             }
-            .offset(y: -size * 0.1)
-            
-            AsymmetricMouthView(
-                smileLeft: effectiveSmileLeft,
-                smileRight: effectiveSmileRight,
-                pucker: effectivePucker
-            )
-            .stroke(color, style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
-            .frame(width: size * 0.5, height: size * 0.4)
-            .offset(y: size * 0.15)
+            .offset(y: -size * 0.05)
         }
         .onReceive(blinkTimer) { _ in
             if Bool.random() {
-                withAnimation(.linear(duration: 0.1)) { isBlinking = true }
+                withAnimation(.smooth(duration: 0.15)) { isBlinking = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(.linear(duration: 0.1)) { isBlinking = false }
+                    withAnimation(.smooth(duration: 0.15)) { isBlinking = false }
                 }
             }
         }
     }
-    
-    var effectiveSmileLeft: Double { manualSmileLeft ?? Double(faceManager.smileLeft) }
-    var effectiveSmileRight: Double { manualSmileRight ?? Double(faceManager.smileRight) }
-    var effectivePucker: Double { manualPucker ?? Double(faceManager.mouthPucker) }
 }
 
-struct EyeView: View {
+struct EyeComposite: View {
     var isBlinking: Bool
-    var isSmiling: Bool
+    var browUp: Double
+    var color: Color
+    var size: CGFloat
     
     var body: some View {
-        ZStack {
-            if isBlinking {
-                Capsule().frame(width: 24, height: 6).foregroundStyle(Color.juruLead)
-            } else if isSmiling {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(Color.juruTeal)
-            } else {
-                Capsule().frame(width: 18, height: 28).foregroundStyle(Color.juruLead)
+        VStack(spacing: size * 0.5) {
+            Capsule()
+                .fill(color)
+                .frame(width: size * 2.8, height: size * 0.7)
+                .shadow(color: color.opacity(0.3), radius: 4, y: 2)
+                .offset(y: CGFloat(browUp * -25))
+                .rotationEffect(.degrees(browUp * -12))
+                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: browUp)
+            
+            ZStack {
+                if isBlinking {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.8))
+                        .frame(width: size * 2.0, height: size * 0.4)
+                } else {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: size * 2.0, height: size * 2.0)
+                        .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
+                    
+                    Circle()
+                        .fill(color)
+                        .frame(width: size * 1.1, height: size * 1.1)
+                        .overlay(
+                            Circle()
+                                .fill(.white.opacity(0.8))
+                                .frame(width: size * 0.35, height: size * 0.35)
+                                .offset(x: size * 0.3, y: -size * 0.3)
+                        )
+                }
             }
         }
     }
 }
 
-struct AsymmetricMouthView: Shape {
-    var smileLeft: Double
-    var smileRight: Double
+struct MouthView: View {
     var pucker: Double
+    var color: Color
     
-    var animatableData: AnimatablePair<Double, AnimatablePair<Double, Double>> {
-        get { AnimatablePair(smileLeft, AnimatablePair(smileRight, pucker)) }
-        set {
-            smileLeft = newValue.first
-            smileRight = newValue.second.first
-            pucker = newValue.second.second
+    var body: some View {
+        GeometryReader { proxy in
+            let w = proxy.size.width
+            let h = proxy.size.height
+            
+            ZStack {
+                if pucker > 0.3 {
+                    Circle()
+                        .fill(color)
+                        .frame(width: w * 0.55, height: w * 0.55)
+                        .position(x: w/2, y: h/2)
+                        .shadow(color: color.opacity(0.4), radius: 8)
+                        .transition(.scale.combined(with: .opacity))
+                } else {
+                    Path { path in
+                        path.move(to: CGPoint(x: w * 0.1, y: h * 0.4))
+                        path.addQuadCurve(
+                            to: CGPoint(x: w * 0.9, y: h * 0.4),
+                            control: CGPoint(x: w/2, y: h * 0.8)
+                        )
+                    }
+                    .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .shadow(color: color.opacity(0.2), radius: 2, y: 2)
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: pucker > 0.3)
         }
-    }
-    
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let w = rect.width
-        let h = rect.height
-        
-        if pucker > 0.3 {
-            let size = w * 0.3
-            let x = (w - size) / 2
-            let y = (h - size) / 2
-            path.addEllipse(in: CGRect(x: x, y: y, width: size, height: size))
-            return path
-        }
-        
-        let startX: CGFloat = 0
-        let endX: CGFloat = w
-        
-        let leftY = h * 0.4 - (CGFloat(smileLeft) * h * 0.3)
-        let rightY = h * 0.4 - (CGFloat(smileRight) * h * 0.3)
-        
-        let controlY = h * 0.4 + (CGFloat(max(smileLeft, smileRight)) * h * 0.4)
-        
-        path.move(to: CGPoint(x: startX, y: leftY))
-        path.addQuadCurve(
-            to: CGPoint(x: endX, y: rightY),
-            control: CGPoint(x: w / 2, y: controlY)
-        )
-        
-        return path
     }
 }

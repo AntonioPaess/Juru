@@ -12,56 +12,24 @@ struct TutorialView: View {
     var faceManager: FaceTrackingManager
     var onTutorialComplete: () -> Void
     
-    // Recebe o controle de foco da RootView
     @Binding var currentFocus: TutorialFocus
     
-    // --- ROTEIRO EXATO ---
-    enum StoryPhase {
+    enum StoryPhase: Equatable {
         case intro
         
-        // CENA 1: Contexto de Dor (Quick Words)
         case pain_Intro
-        case pain_Start
-        case pain_Nav
-        case pain_Select
+        case pain_Switch    // Levantar sobrancelha para trocar o foco
+        case pain_Select    // Fazer bico para confirmar
         
-        // CENA 2: Escrita H (E -> E -> D -> E -> E -> E)
         case typeH_Intro
-        case typeH_Start    // 1. Esquerda (Letters)
-        case typeH_Step1    // 2. Esquerda (A-M)
-        case typeH_Step2    // 3. Direita (H-M)
-        case typeH_Step3    // 4. Esquerda (H-K)
-        case typeH_Step4    // 5. Esquerda (H-I)
-        case typeH_Step5    // 6. Esquerda (Select H)
+        case typeH_FocusLeft
+        case typeH_SelectLeft
+        case typeH_FocusRight
+        case typeH_SelectRight
+        case typeH_Confirm
         
-        // CENA 3: Predição HELP
-        case predictHelp_Intro
-        case predictHelp_Start
-        case predictHelp_Step1
-        case predictHelp_Step2
-        case predictHelp_Select
-        
-        // CENA 4: Correção (Bico)
         case undo_Intro
-        case undo_Action
-        
-        // CENA 5: Predição HELLO
-        case predictHello_Intro
-        case predictHello_Start
-        case predictHello_Step1
-        case predictHello_Step2
-        case predictHello_Select
-        
-        // CENA 6: Falar
-        case speak_Intro
-        case speak_Start
-        case speak_Select
-        
-        // CENA 7: Limpar
-        case clear_Intro
-        case clear_Start
-        case clear_Step1
-        case clear_Select
+        case undo_Action // Long Press
         
         case completed
     }
@@ -71,34 +39,34 @@ struct TutorialView: View {
     @State private var subtitle: String = ""
     @State private var isSuccessFeedback: Bool = false
     
+    // Controle para evitar múltiplos disparos
+    @State private var isTransitioning: Bool = false
+    
     @Environment(\.horizontalSizeClass) var sizeClass
     var isPad: Bool { sizeClass == .regular }
     
     var body: some View {
         VStack {
             if isPad {
-                // Design Original iPad: Card no Topo
                 instructionCard.padding(.top, 40)
                 Spacer()
             } else {
-                // Design Original iPhone: Card Embaixo
                 Spacer()
                 instructionCard.padding(.bottom, 130)
             }
         }
         .padding(.horizontal, isPad ? 100 : 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity) // Overlay Transparente
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         
         .onAppear { startStory() }
-        
-        // --- MONITORES ---
-        .onChange(of: vocabManager.leftLabel) { checkNavigation() }
-        .onChange(of: vocabManager.rightLabel) { checkNavigation() }
+        // Monitora mudanças no foco (Sobrancelha)
+        .onChange(of: faceManager.currentFocusState) { checkNavigation() }
+        // Monitora mudanças no texto (Seleção via Bico)
         .onChange(of: vocabManager.currentMessage) { checkMessage() }
-        .onChange(of: vocabManager.isSpeaking) { checkSpeech() }
+        // Monitora ação de desfazer
+        .onChange(of: faceManager.isBackingOut) { checkUndo() }
     }
     
-    // MARK: - Componente Visual (Card Flutuante Original)
     var instructionCard: some View {
         VStack(spacing: 16) {
             HStack(spacing: 12) {
@@ -108,7 +76,7 @@ struct TutorialView: View {
                     .symbolEffect(.bounce, value: phase)
                 
                 Text(title)
-                    .font(.title2.bold())
+                    .font(.juruFont(.title2, weight: .bold))
                     .foregroundStyle(isSuccessFeedback ? .white : Color.juruText)
                     .multilineTextAlignment(.center)
                     .animation(.default, value: title)
@@ -116,7 +84,7 @@ struct TutorialView: View {
             
             if !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.body)
+                    .font(.juruFont(.body))
                     .foregroundStyle(isSuccessFeedback ? .white.opacity(0.9) : Color.juruSecondaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
@@ -129,7 +97,7 @@ struct TutorialView: View {
                     Image(systemName: actionIcon)
                     Text(actionText)
                 }
-                .font(.callout.bold())
+                .font(.juruFont(.callout, weight: .bold))
                 .foregroundStyle(.white)
                 .padding(.vertical, 8)
                 .padding(.horizontal, 20)
@@ -153,109 +121,121 @@ struct TutorialView: View {
         .animation(.easeInOut, value: isSuccessFeedback)
     }
     
-    // MARK: - Lógica de Navegação
+    // Lógica de Navegação (Sobrancelha)
     func checkNavigation() {
+        guard !isTransitioning else { return }
+        
         switch phase {
-        case .pain_Start:
-            if checkR("Pain") || checkR("Water") { advance(to: .pain_Nav) }
-        case .pain_Nav:
-            if checkL("PAIN") { advance(to: .pain_Select) }
+        case .pain_Switch:
+            // Objetivo: Ir para a Direita
+            if faceManager.currentFocusState == 2 {
+                advance(to: .pain_Select)
+            }
             
-        case .typeH_Start:
-            if checkL("A - M") { advance(to: .typeH_Step1) }
-        case .typeH_Step1:
-            if checkR("H") { advance(to: .typeH_Step2) }
-        case .typeH_Step2:
-            if checkL("H") { advance(to: .typeH_Step3) }
-        case .typeH_Step3:
-            if checkL("H") { advance(to: .typeH_Step4) }
-        case .typeH_Step4:
-            if checkL("H") { advance(to: .typeH_Step5) }
+        case .typeH_FocusLeft:
+            // Objetivo: Ir para a Esquerda
+            if faceManager.currentFocusState == 1 {
+                advance(to: .typeH_SelectLeft)
+            }
             
-        case .predictHelp_Start:
-            if checkL("HELP") || checkR("HELP") { advance(to: .predictHelp_Step1) }
-        case .predictHelp_Step1:
-            advance(to: .predictHelp_Step2)
-        case .predictHelp_Step2:
-            if checkL("HELP") { advance(to: .predictHelp_Select) }
-            
-        case .predictHello_Start:
-            advance(to: .predictHello_Step1)
-        case .predictHello_Step1:
-            advance(to: .predictHello_Step2)
-        case .predictHello_Step2:
-            if checkR("HELLO") { advance(to: .predictHello_Select) }
-            
-        case .speak_Start:
-            if checkR("Speak") { advance(to: .speak_Select) }
-            
-        case .clear_Start:
-            if checkR("Clear") || checkL("Clear") { advance(to: .clear_Step1) }
-        case .clear_Step1:
-            if checkR("Clear") { advance(to: .clear_Select) }
+        case .typeH_FocusRight:
+            // Objetivo: Ir para a Direita (H-M)
+            if faceManager.currentFocusState == 2 {
+                advance(to: .typeH_SelectRight)
+            }
             
         default: break
         }
     }
     
-    // Helpers curtos para verificar labels (case insensitive e contem)
-    func checkL(_ s: String) -> Bool { vocabManager.leftLabel.uppercased().contains(s.uppercased()) }
-    func checkR(_ s: String) -> Bool { vocabManager.rightLabel.uppercased().contains(s.uppercased()) }
-    
+    // Lógica de Mensagem (Bico/Seleção)
     func checkMessage() {
+        guard !isTransitioning else { return }
         let msg = vocabManager.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        
         switch phase {
-        case .typeH_Step5: if msg == "H" { advance(to: .predictHelp_Intro, delay: 0.5) }
-        case .predictHelp_Select: if msg.contains("HELP") { advance(to: .undo_Intro, delay: 1.0) }
-        case .undo_Action: if msg == "HEL" { advance(to: .predictHello_Intro, delay: 0.5) }
-        case .predictHello_Select: if msg.contains("HELLO") { advance(to: .speak_Intro, delay: 1.0) }
-        case .clear_Select: if msg.isEmpty { advance(to: .completed, delay: 0.5) }
+        case .pain_Select:
+             // Espera que QUALQUER coisa seja selecionada nos Quick Words
+             if !msg.isEmpty {
+                 // Limpa a mensagem para a próxima etapa não pegar lixo
+                 vocabManager.currentMessage = ""
+                 advance(to: .typeH_Intro, delay: 1.5)
+             }
+             
+        case .typeH_SelectLeft:
+             // Verificamos se o Label mudou, indicando que entrou no grupo
+             if !vocabManager.leftLabel.contains("Letters") {
+                 advance(to: .typeH_FocusRight)
+             }
+             
+        case .typeH_SelectRight:
+             // Verificamos se entrou no subgrupo (H-M)
+             // Assumindo que a navegação funcionou, apenas avançamos
+             advance(to: .typeH_Confirm)
+             
+        case .typeH_Confirm:
+             // Verifica se a letra H foi digitada
+             if msg.contains("H") {
+                 advance(to: .undo_Intro, delay: 1.0)
+             }
+             
         default: break
         }
     }
     
-    func checkSpeech() {
-        if vocabManager.isSpeaking && phase == .pain_Select {
+    func checkUndo() {
+        guard !isTransitioning else { return }
+        
+        if phase == .undo_Action && faceManager.isBackingOut {
             triggerSuccess()
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                vocabManager.currentMessage = ""
-                setPhase(.typeH_Intro)
+                onTutorialComplete()
             }
-        }
-        if vocabManager.isSpeaking && phase == .speak_Select {
-            advance(to: .clear_Intro, delay: 2.0)
         }
     }
     
     func advance(to next: StoryPhase, delay: Double = 0.0) {
+        // Bloqueia múltiplas chamadas
+        isTransitioning = true
+        
         triggerSuccess()
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { setPhase(next) }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            setPhase(next)
+            // Libera transições após a mudança de fase ter assentado
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.isTransitioning = false
+            }
+        }
     }
     
     func setPhase(_ p: StoryPhase) {
         withAnimation { phase = p; updateTexts() }
         
-        // Auto-Avanço de Intros
+        // Auto-avanço para fases apenas informativas
         let autoDelay: Double = 4.5
         switch p {
-        case .pain_Intro: DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) { setPhase(.pain_Start) }
-        case .typeH_Intro: DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) { setPhase(.typeH_Start) }
-        case .predictHelp_Intro: DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) { setPhase(.predictHelp_Start) }
-        case .undo_Intro: DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) { setPhase(.undo_Action) }
-        case .predictHello_Intro: DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) { setPhase(.predictHello_Start) }
-        case .speak_Intro: DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) { setPhase(.speak_Start) }
-        case .clear_Intro: DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) { setPhase(.clear_Start) }
-        case .completed: DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { onTutorialComplete() }
+        case .pain_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) {
+                if phase == .pain_Intro { setPhase(.pain_Switch) }
+            }
+        case .typeH_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) {
+                if phase == .typeH_Intro { setPhase(.typeH_FocusLeft) }
+            }
+        case .undo_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) {
+                if phase == .undo_Intro { setPhase(.undo_Action) }
+            }
         default: break
         }
     }
     
     func triggerSuccess() {
         withAnimation { isSuccessFeedback = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation { isSuccessFeedback = false } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { withAnimation { isSuccessFeedback = false } }
     }
     
-    // MARK: - Roteiro (Storytelling)
     func startStory() {
         vocabManager.currentMessage = ""
         setPhase(.intro)
@@ -265,154 +245,77 @@ struct TutorialView: View {
     func updateTexts() {
         switch phase {
         case .intro:
-            title = "Welcome"; subtitle = "Let's find your voice."
+            title = "Welcome"; subtitle = "Let's learn the Brow-Scanner."
             currentFocus = .none
             
         // --- PAIN ---
         case .pain_Intro:
-            title = "Emergency"; subtitle = "Imagine you are in pain.\nYou need to speak NOW."
+            title = "Navigation"; subtitle = "Raise your eyebrows to move the cursor."
             currentFocus = .none
-        case .pain_Start:
-            title = "Quick Words"; subtitle = "Smile RIGHT to open menu."
-            currentFocus = .rightButton
-        case .pain_Nav:
-            title = "Find 'Pain'"; subtitle = "Navigate with Right Smile."
+        case .pain_Switch:
+            title = "Move Focus"; subtitle = "Raise Brows until RIGHT button glows."
             currentFocus = .rightButton
         case .pain_Select:
-            title = "Speak It"; subtitle = "Left Smile to select and speak."
-            currentFocus = .leftButton
+            title = "Select It"; subtitle = "Release Pucker to select 'Quick Words'."
+            currentFocus = .rightButton
             
-        // --- H ---
+        // --- TYPE H ---
         case .typeH_Intro:
-            title = "Precision"; subtitle = "Now let's write exactly what you want.\nLet's write 'H'."
+            title = "Typing"; subtitle = "Let's type the letter 'H'."
             currentFocus = .none
-        case .typeH_Start:
-            title = "Alphabet"; subtitle = "Left Smile to enter Letters."
+        case .typeH_FocusLeft:
+            title = "Find Letters"; subtitle = "Raise Brows to highlight LEFT."
             currentFocus = .leftButton
-        case .typeH_Step1:
-            title = "Group A-M"; subtitle = "It's on the Left."
+        case .typeH_SelectLeft:
+            title = "Open Group"; subtitle = "Release Pucker to open A-Z."
             currentFocus = .leftButton
-        case .typeH_Step2:
-            title = "Group H-M"; subtitle = "Now it's on the Right."
+        case .typeH_FocusRight:
+            title = "Narrow Down"; subtitle = "Raise Brows to highlight RIGHT."
             currentFocus = .rightButton
-        case .typeH_Step3:
-            title = "Narrow Down"; subtitle = "Left Smile."
-            currentFocus = .leftButton
-        case .typeH_Step4:
-            title = "Almost There"; subtitle = "Left Smile."
-            currentFocus = .leftButton
-        case .typeH_Step5:
-            title = "Type 'H'"; subtitle = "Left Smile to confirm."
-            currentFocus = .leftButton
-            
-        // --- HELP ---
-        case .predictHelp_Intro:
-            title = "Prediction"; subtitle = "See 'Help' in the suggestions?\nJuru guesses for you."
-            currentFocus = .suggestions
-        case .predictHelp_Start:
-            title = "Enter Suggestions"; subtitle = "Right Smile to access them."
+        case .typeH_SelectRight:
+            title = "Select Group"; subtitle = "Release Pucker to open group."
             currentFocus = .rightButton
-        case .predictHelp_Step1:
-            title = "Navigate"; subtitle = "Left Smile."
-            currentFocus = .leftButton
-        case .predictHelp_Step2:
-            title = "Navigate"; subtitle = "Left Smile."
-            currentFocus = .leftButton
-        case .predictHelp_Select:
-            title = "Select 'Help'"; subtitle = "Left Smile to pick it."
+        case .typeH_Confirm:
+            title = "Finish H"; subtitle = "Find 'H' and Select it.";
             currentFocus = .leftButton
             
         // --- UNDO ---
         case .undo_Intro:
-            title = "Mistake?"; subtitle = "Oops, we wanted 'Hello'.\nNo problem."
+            title = "Mistakes happen"; subtitle = "To go back, we use time."
             currentFocus = .none
         case .undo_Action:
-            title = "The Eraser"; subtitle = "Make a KISS face (Pucker)\nto delete the 'P'."
-            currentFocus = .speak
-            
-        // --- HELLO ---
-        case .predictHello_Intro:
-            title = "Found 'Hello'"; subtitle = "Look! It's right there."
-            currentFocus = .suggestions
-        case .predictHello_Start:
-            title = "Enter Suggestions"; subtitle = "Right Smile."
-            currentFocus = .rightButton
-        case .predictHello_Step1:
-            title = "Navigate"; subtitle = "Left Smile."
-            currentFocus = .leftButton
-        case .predictHello_Step2:
-            title = "Navigate"; subtitle = "Left Smile."
-            currentFocus = .leftButton
-        case .predictHello_Select:
-            title = "Select 'Hello'"; subtitle = "Right Smile this time."
-            currentFocus = .rightButton
-            
-        // --- SPEAK ---
-        case .speak_Intro:
-            title = "Your Voice"; subtitle = "The text is ready.\nLet's vocalize it."
+            title = "Long Press"; subtitle = "HOLD Pucker until RED, then Release."
             currentFocus = .none
-        case .speak_Start:
-            title = "Commands"; subtitle = "Right Smile for menu."
-            currentFocus = .rightButton
-        case .speak_Select:
-            title = "Say It!"; subtitle = "Right Smile to Speak."
-            currentFocus = .rightButton
-            
-        // --- CLEAR ---
-        case .clear_Intro:
-            title = "Clean Up"; subtitle = "Ready for the next sentence?\nLet's clear."
-            currentFocus = .none
-        case .clear_Start:
-            title = "Edit Menu"; subtitle = "Right Smile."
-            currentFocus = .rightButton
-        case .clear_Step1:
-            title = "Find 'Clear'"; subtitle = "Left Smile."
-            currentFocus = .leftButton
-        case .clear_Select:
-            title = "Clear All"; subtitle = "Right Smile."
-            currentFocus = .rightButton
             
         case .completed:
             title = "You did it!"; subtitle = "You are ready."; currentFocus = .none
         }
     }
     
-    // Propriedade Computada para mostrar ou esconder a pílula de ação
     var shouldShowAction: Bool {
         if currentFocus == .none { return false }
         switch phase {
-        case .intro, .pain_Intro, .typeH_Intro, .predictHelp_Intro, .undo_Intro, .predictHello_Intro, .speak_Intro, .clear_Intro, .completed:
-            return false
-        default:
-            return true
+        case .intro, .pain_Intro, .typeH_Intro, .undo_Intro, .completed: return false
+        default: return true
         }
     }
     
-    // Helpers Visuais
     var iconForPhase: String {
         switch phase {
-        case .intro, .pain_Intro, .typeH_Intro, .predictHelp_Intro, .undo_Intro, .predictHello_Intro, .speak_Intro, .clear_Intro, .completed:
-            return "hand.wave.fill"
-        case .pain_Start, .pain_Nav, .pain_Select: return "bolt.fill"
-        case .typeH_Start, .typeH_Step1, .typeH_Step2, .typeH_Step3, .typeH_Step4, .typeH_Step5: return "keyboard"
         case .undo_Action: return "arrow.uturn.backward"
-        case .speak_Select: return "waveform"
-        case .clear_Select: return "trash.fill"
-        default: return "sparkles"
+        default: return "face.smiling"
         }
     }
     
     var actionIcon: String {
-        if currentFocus == .leftButton { return "arrow.left" }
-        if currentFocus == .rightButton { return "arrow.right" }
-        if currentFocus == .speak { return "mouth" }
-        return "face.smiling"
+        if phase == .pain_Switch || phase == .typeH_FocusLeft || phase == .typeH_FocusRight { return "eyebrow" }
+        if phase == .undo_Action { return "clock.arrow.circlepath" }
+        return "mouth"
     }
     
     var actionText: String {
-        if currentFocus == .leftButton { return "Left Smile" }
-        if currentFocus == .rightButton { return "Right Smile" }
-        if currentFocus == .speak { return "Pucker (Kiss)" }
-        return "Look Here"
+        if phase == .pain_Switch || phase == .typeH_FocusLeft || phase == .typeH_FocusRight { return "Raise Brows" }
+        if phase == .undo_Action { return "Hold & Release" }
+        return "Pucker & Release"
     }
 }

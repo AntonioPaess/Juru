@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-// Enum para controlar o foco do tutorial
 enum TutorialFocus: Equatable {
     case none
     case leftButton
@@ -21,7 +20,6 @@ struct MainTypingView: View {
     var faceManager: FaceTrackingManager
     var isPaused: Bool
     
-    // Controle de Foco para o Tutorial
     var tutorialFocus: TutorialFocus = .none
     
     @Environment(\.colorScheme) var colorScheme
@@ -33,14 +31,11 @@ struct MainTypingView: View {
     
     var body: some View {
         ZStack {
-            // 1. AMBIENT BACKGROUND
             AmbientBackground()
             
             VStack(spacing: 0) {
-                
-                // 2. HEADER
+                // HEADER
                 HStack {
-                    // Logo Oficial (Assets)
                     Image("Juru-White")
                         .resizable()
                         .scaledToFit()
@@ -49,35 +44,36 @@ struct MainTypingView: View {
                     
                     Spacer()
                     
-                    if faceManager.isTriggeringBack {
-                        Label("Undo", systemImage: "arrow.uturn.backward")
+                    // Indicador de Undo no topo também ajuda
+                    if faceManager.puckerState == .readyToBack {
+                        Label("Release to Undo", systemImage: "arrow.uturn.backward")
                             .font(.caption.bold())
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.juruCoral)
+                            .background(Color.red)
                             .clipShape(Capsule())
+                            .transition(.scale)
                     }
                 }
                 .padding(.horizontal, 30)
                 .padding(.top, 20)
                 .padding(.bottom, 10)
-                .opacity(shouldDim(.none) ? 0.3 : 1.0) // Dimming se não for foco
+                .opacity(shouldDim(.none) ? 0.3 : 1.0)
                 
-                // 3. TEXT OUTPUT
+                // TEXTO
                 TypingDisplayCard(text: vocabManager.currentMessage)
                     .frame(maxHeight: isPad ? 240 : 180)
                     .padding(.horizontal, isPad ? 80 : 24)
                     .layoutPriority(1)
                     .opacity(shouldDim(.none) ? 0.3 : 1.0)
                 
-                // 4. SUGGESTIONS (Com suporte a Foco)
+                // SUGESTÕES
                 if !vocabManager.suggestions.isEmpty {
                     SuggestionBar(suggestions: vocabManager.suggestions)
                         .padding(.top, 16)
                         .opacity(shouldDim(.suggestions) ? 0.3 : 1.0)
                         .overlay(
-                            // Borda Dourada se for o foco do tutorial
                             tutorialFocus == .suggestions ?
                             RoundedRectangle(cornerRadius: 16)
                                 .stroke(Color.juruGold, lineWidth: 3)
@@ -88,68 +84,67 @@ struct MainTypingView: View {
                 
                 Spacer()
                 
-                // 5. VISUAL FEEDBACK
-                FeedbackCenter(
-                    faceManager: faceManager,
-                    isSpeaking: vocabManager.isSpeaking
-                )
+                // --- CURSOR CENTRAL COM FEEDBACK VISUAL ---
+                ZStack {
+                    // Base do Feedback
+                    FeedbackCenter(
+                        faceManager: faceManager,
+                        isSpeaking: vocabManager.isSpeaking
+                    )
+                    
+                    // Anel de Progresso Inteligente
+                    if faceManager.puckerState != .idle && faceManager.puckerState != .cooldown {
+                        ProgressRing(state: faceManager.puckerState, progress: faceManager.interactionProgress)
+                            .frame(width: 160, height: 160)
+                    }
+                }
                 .padding(.vertical, 20)
                 .scaleEffect(isPad ? 1.3 : 1.0)
                 .opacity(shouldDim(.none) ? 0.5 : 1.0)
                 
                 Spacer()
                 
-                // 6. ACTION CARDS (Com suporte a Foco)
+                // BOTÕES DE AÇÃO
                 HStack(spacing: 24) {
-                    // BOTÃO ESQUERDO
                     ActionCard(
                         title: vocabManager.leftLabel,
                         icon: "arrow.left",
                         color: .juruTeal,
-                        isActive: faceManager.isTriggeringLeft,
+                        isActive: faceManager.isTriggeringLeft, // Visual Focus
                         alignment: .leading
                     )
                     .opacity(shouldDim(.leftButton) ? 0.3 : 1.0)
-                    .scaleEffect(tutorialFocus == .leftButton ? 1.05 : 1.0)
                     .overlay(
-                        tutorialFocus == .leftButton ?
-                        RoundedRectangle(cornerRadius: 28)
-                            .stroke(Color.juruGold, lineWidth: 4)
-                            .shadow(color: .juruGold, radius: 10)
-                        : nil
+                        faceManager.currentFocusState == 1 ?
+                        RoundedRectangle(cornerRadius: 28).stroke(Color.white, lineWidth: 4) : nil
                     )
+                    .scaleEffect(faceManager.currentFocusState == 1 ? 1.05 : 1.0)
                     
-                    // BOTÃO DIREITO
                     ActionCard(
                         title: vocabManager.rightLabel,
                         icon: "arrow.right",
                         color: .juruCoral,
-                        isActive: faceManager.isTriggeringRight,
+                        isActive: faceManager.isTriggeringRight, // Visual Focus
                         alignment: .trailing
                     )
                     .opacity(shouldDim(.rightButton) ? 0.3 : 1.0)
-                    .scaleEffect(tutorialFocus == .rightButton ? 1.05 : 1.0)
                     .overlay(
-                        tutorialFocus == .rightButton ?
-                        RoundedRectangle(cornerRadius: 28)
-                            .stroke(Color.juruGold, lineWidth: 4)
-                            .shadow(color: .juruGold, radius: 10)
-                        : nil
+                        faceManager.currentFocusState == 2 ?
+                        RoundedRectangle(cornerRadius: 28).stroke(Color.white, lineWidth: 4) : nil
                     )
+                    .scaleEffect(faceManager.currentFocusState == 2 ? 1.05 : 1.0)
                 }
                 .frame(height: 200)
                 .padding(.horizontal, isPad ? 80 : 24)
                 .padding(.bottom, 20)
                 
-                // 7. FOOTER
-                HStack(spacing: 6) {
-                    Image(systemName: "mouth")
-                    Text("Pucker to Undo")
-                }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Color.juruSecondaryText)
-                .opacity(0.6)
-                .padding(.bottom, 20)
+                // INSTRUÇÃO DE RODAPÉ DINÂMICA
+                Text(footerInstruction)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Color.juruSecondaryText)
+                    .opacity(0.6)
+                    .padding(.bottom, 20)
+                    .animation(.default, value: faceManager.puckerState)
             }
         }
         .onReceive(timer) { _ in
@@ -158,15 +153,82 @@ struct MainTypingView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: tutorialFocus)
     }
     
-    // Helper para saber se deve escurecer um elemento durante o tutorial
+    var footerInstruction: String {
+        switch faceManager.puckerState {
+        case .idle: return "Hold Pucker to Select • Long Hold to Undo"
+        case .charging: return "Keep holding..."
+        case .readyToSelect: return "Release to SELECT"
+        case .readyToBack: return "Release to UNDO"
+        case .cooldown: return "Relax..."
+        }
+    }
+    
     func shouldDim(_ element: TutorialFocus) -> Bool {
-        if tutorialFocus == .none { return false } // Se não tem tutorial, tudo aceso
+        if tutorialFocus == .none { return false }
         return tutorialFocus != element
     }
 }
 
-// MARK: - SUBVIEWS (Componentes Visuais)
+// NOVO COMPONENTE DE ANEL "APPLE-STYLE"
+struct ProgressRing: View {
+    var state: PuckerState
+    var progress: Double
+    
+    var ringColor: Color {
+        switch state {
+        case .charging: return Color.gray.opacity(0.5)
+        case .readyToSelect: return Color.juruTeal // Verde Juru
+        case .readyToBack: return Color.red // Perigo
+        default: return .clear
+        }
+    }
+    
+    var iconName: String {
+        switch state {
+        case .readyToSelect: return "checkmark"
+        case .readyToBack: return "arrow.uturn.backward"
+        default: return "circle.fill"
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            // Fundo do anel
+            Circle()
+                .stroke(Color.white.opacity(0.1), lineWidth: 8)
+            
+            // O Anel de Progresso
+            Circle()
+                .trim(from: 0.0, to: progress)
+                .stroke(
+                    ringColor,
+                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.05), value: progress)
+            
+            // Ícone Central (Feedback do que vai acontecer)
+            if state == .readyToSelect || state == .readyToBack {
+                Circle()
+                    .fill(ringColor)
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: iconName)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.white)
+                    )
+                    .offset(y: -90) // Flutua acima do avatar
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+    }
+}
 
+// Mantivemos os outros componentes visuais (AmbientBackground, TypingDisplayCard, etc.)
+// iguais ao anterior, apenas integrando o ProgressRing acima.
+// (Copie os structs auxiliares do arquivo anterior aqui se necessário)
+
+// ... Resto dos structs auxiliares (FeedbackCenter, ActionCard etc) ...
 struct AmbientBackground: View {
     @Environment(\.colorScheme) var colorScheme
     
@@ -175,7 +237,6 @@ struct AmbientBackground: View {
             Color.juruBackground.ignoresSafeArea()
             
             GeometryReader { proxy in
-                // Blobs suaves para dar vida ao fundo
                 Circle()
                     .fill(Color.juruTeal.opacity(0.08))
                     .frame(width: 600, height: 600)
@@ -200,7 +261,7 @@ struct TypingDisplayCard: View {
         VStack(alignment: .leading) {
             ScrollView {
                 Text(text.isEmpty ? "Start smiling..." : text)
-                    .font(.system(size: 38, weight: .bold, design: .rounded))
+                    .font(.juruFont(.largeTitle, weight: .bold))
                     .foregroundStyle(text.isEmpty ? Color.secondary.opacity(0.5) : Color.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(32)
@@ -246,17 +307,16 @@ struct FeedbackCenter: View {
     var isSpeaking: Bool
     
     var activeColor: Color {
-        if faceManager.isTriggeringLeft { return .juruTeal }
-        if faceManager.isTriggeringRight { return .juruCoral }
+        if faceManager.currentFocusState == 1 { return .juruTeal }
+        if faceManager.currentFocusState == 2 { return .juruCoral }
         return .clear
     }
     
     var body: some View {
         HStack(spacing: 40) {
-            IntensityGauge(value: faceManager.smileLeft, color: .juruTeal, isLeft: true)
+            IntensityGauge(value: faceManager.browUp, color: .juruTeal, isLeft: true)
             
             ZStack {
-                // ANIMAÇÃO DE FALA (Ondas Sonoras)
                 if isSpeaking {
                     ForEach(0..<3) { i in
                         Circle()
@@ -276,7 +336,6 @@ struct FeedbackCenter: View {
                     }
                 }
                 
-                // Halo de Atividade (Se não estiver falando)
                 if !isSpeaking {
                     Circle()
                         .fill(activeColor.opacity(0.2))
@@ -286,7 +345,6 @@ struct FeedbackCenter: View {
                         .animation(.spring, value: activeColor)
                 }
                 
-                // Avatar Base
                 Circle()
                     .fill(Color.juruCardBackground)
                     .shadow(color: Color.black.opacity(0.15), radius: 15, y: 8)
@@ -298,7 +356,7 @@ struct FeedbackCenter: View {
                 )
             }
             
-            IntensityGauge(value: faceManager.smileRight, color: .juruCoral, isLeft: false)
+            IntensityGauge(value: faceManager.mouthPucker, color: .juruCoral, isLeft: false)
         }
     }
 }
@@ -319,7 +377,7 @@ struct IntensityGauge: View {
             if !isLeft { label }
         }
     }
-    var label: some View { Text(isLeft ? "L" : "R").font(.caption2.bold()).foregroundStyle(Color.secondary) }
+    var label: some View { Text(isLeft ? "B" : "P").font(.caption2.bold()).foregroundStyle(Color.secondary) }
 }
 
 struct ActionCard: View {
@@ -358,11 +416,11 @@ struct ActionCard: View {
                 Spacer()
                 
                 Text(title)
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .font(.juruFont(.title2, weight: .bold))
                     .foregroundStyle(isActive ? .white : Color.primary)
                     .multilineTextAlignment(alignment == .leading ? .leading : .trailing)
                     .lineLimit(3)
-                    .minimumScaleFactor(0.5)
+                    .minimumScaleFactor(0.4)
                     .padding(.bottom, 4)
             }
             .padding(24)

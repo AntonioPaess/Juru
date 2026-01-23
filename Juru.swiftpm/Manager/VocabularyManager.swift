@@ -20,17 +20,14 @@ enum AppCommand: String, CaseIterable {
 @MainActor
 @Observable
 class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
-    // MARK: - Dependencies
     var faceManager: FaceTrackingManager
     private var trie = Trie()
     private let synthesizer = AVSpeechSynthesizer()
     var isDictionaryLoaded = false
     
-    // MARK: - State
     var currentMessage: String = ""
     var suggestions: [String] = []
     
-    // NOVO: Estado para animação do avatar
     var isSpeaking: Bool = false
     
     private var currentBranch: [String] = []
@@ -40,7 +37,10 @@ class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
     var rightLabel: String = ""
     
     var isSelectingWord: Bool = false
-    private var selectionTask: Task<Void, Never>?
+    
+    // --- SEMÁFORO DE AÇÃO ---
+    // Impede cliques duplos acidentais ao trocar de menu
+    private var isProcessingAction: Bool = false
     
     let alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
     let quickPhrases = ["Yes", "No", "Pain", "Water"]
@@ -48,12 +48,11 @@ class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
     
     init(faceManager: FaceTrackingManager) {
         self.faceManager = faceManager
-        super.init() // Necessário pois herdamos de NSObject
+        super.init()
         
         setupAudio()
         resetToRoot()
         
-        // Configura o delegate para saber quando a fala começa/termina
         synthesizer.delegate = self
         
         Task { await loadDictionary() }
@@ -86,47 +85,39 @@ class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
         self.isDictionaryLoaded = true
     }
     
-    // MARK: - Game Loop
     func update() {
-        if selectionTask != nil {
-            if !isGestureActive() { cancelTimer() }
+        // Se estiver bloqueado processando uma ação anterior, IGNORE tudo.
+        if isProcessingAction { return }
+        
+        if faceManager.isBackingOut {
+            handleBack()
+            lockInteraction(duration: 0.8) // Trava um pouco ao voltar
             return
         }
-        if faceManager.isTriggeringLeft { startTimer(for: .selectLeft) }
-        else if faceManager.isTriggeringRight { startTimer(for: .selectRight) }
-        else if faceManager.isTriggeringBack { startTimer(for: .backOrDelete) }
-    }
-    
-    private func isGestureActive() -> Bool {
-        return faceManager.isTriggeringLeft || faceManager.isTriggeringRight || faceManager.isTriggeringBack
-    }
-    
-    private enum ActionType { case selectLeft, selectRight, backOrDelete }
-    
-    private func startTimer(for action: ActionType) {
-        selectionTask = Task {
-            try? await Task.sleep(for: .seconds(0.4))
-            if !Task.isCancelled {
-                self.execute(action)
-                self.selectionTask = nil
+        
+        if faceManager.isConfirming {
+            // Trava IMEDIATAMENTE antes de processar
+            lockInteraction(duration: 1.0) // 1 segundo de "respiro" obrigatório
+            
+            if faceManager.currentFocusState == 1 {
+                handleSelection(isLeft: true)
+            } else {
+                handleSelection(isLeft: false)
             }
         }
     }
     
-    private func cancelTimer() {
-        selectionTask?.cancel()
-        selectionTask = nil
-    }
-    
-    private func execute(_ action: ActionType) {
-        switch action {
-        case .selectLeft:  handleSelection(isLeft: true)
-        case .selectRight: handleSelection(isLeft: false)
-        case .backOrDelete: handleBack()
+    // Método para bloquear o sistema temporariamente
+    private func lockInteraction(duration: TimeInterval) {
+        self.isProcessingAction = true
+        
+        // Desbloqueia após o tempo definido
+        Task {
+            try? await Task.sleep(for: .seconds(duration))
+            self.isProcessingAction = false
         }
     }
     
-    // MARK: - Context Logic
     private func handleSelection(isLeft: Bool) {
         if currentBranch.isEmpty {
             addToHistory([])
@@ -195,7 +186,6 @@ class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
         else { addCharacter(item) }
     }
     
-    // MARK: - Aux Navigation
     private func startBranch(_ items: [String]) { currentBranch = items; updateLabels() }
     
     private func split(_ items: [String]) -> ([String], [String]) {
@@ -234,7 +224,6 @@ class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
         rightLabel = currentMessage.isEmpty ? "Quick Words" : (suggestions.isEmpty ? "Edit & Speak" : "Predict & Edit")
     }
     
-    // MARK: - Text Manipulation
     private func addCharacter(_ char: String) {
         let val = (currentMessage.isEmpty || currentMessage.hasSuffix(". ")) ? char.uppercased() : char.lowercased()
         currentMessage.append(val); updateSuggestions(); resetToRoot()
@@ -288,8 +277,6 @@ class VocabularyManager: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.speak(utterance)
     }
     
-    // MARK: - AVSpeechSynthesizerDelegate
-    // Atualiza a UI na MainActor
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         Task { @MainActor in self.isSpeaking = true }
     }
