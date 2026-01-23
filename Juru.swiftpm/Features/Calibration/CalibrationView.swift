@@ -11,22 +11,311 @@ struct CalibrationView: View {
     var faceManager: FaceTrackingManager
     var onCalibrationComplete: () -> Void
     
-    enum Step {
-        case neutral
-        case brows
-        case pucker
-        case done
-    }
+    enum Step { case neutral, brows, pucker, done }
     
     @State private var currentStep: Step = .neutral
     @State private var progress: CGFloat = 0.0
-    @State private var demoValue: Double = 0.0
     @State private var isUserTurn: Bool = false
     
-    @State private var neutralCollectionCount: Int = 0
+    // Feedback Visual de Sucesso
+    @State private var showSuccessFeedback: Bool = false
+    
+    // Animação da Demo (Loop)
+    @State private var animBrow: Double = 0.0
+    @State private var animPucker: Double = 0.0
+    
+    // Coleta de Dados
+    @State private var neutralCount: Int = 0
     @State private var neutralBrowSum: Double = 0
     @State private var neutralPuckerSum: Double = 0
-    let neutralTimer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+    
+    // Timer para Animação Demo e Coleta Neutral
+    let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
+    @State private var timeAccumulator: Double = 0.0
+    
+    var body: some View {
+        GeometryReader { geo in
+            let isLandscape = geo.size.width > geo.size.height
+            let isPad = geo.size.width > 600
+            // Escala dinâmica para iPad
+            let scale = isPad ? (isLandscape ? 1.2 : 1.3) : 1.0
+            
+            ZStack {
+                Color.juruBackground.ignoresSafeArea()
+                
+                // Background Decorativo Sutil
+                AmbientCalibrationBackground(step: currentStep, scale: scale)
+                
+                if isLandscape {
+                    // --- LAYOUT HORIZONTAL (iPad Landscape) ---
+                    HStack(spacing: 40) {
+                        // ESQUERDA: Textos e Controles
+                        VStack(alignment: .leading, spacing: 40) {
+                            Spacer()
+                            InstructionText(step: currentStep, scale: scale, align: .leading)
+                            
+                            ControlsView(
+                                currentStep: currentStep,
+                                isUserTurn: isUserTurn,
+                                stepColor: stepColor,
+                                scale: scale,
+                                onAction: onCalibrationComplete
+                            )
+                            Spacer()
+                        }
+                        .frame(width: geo.size.width * 0.4) // 40% da largura
+                        .padding(.leading, 60)
+                        
+                        // DIREITA: Avatar Centralizado
+                        ZStack {
+                            AvatarHeroArea(
+                                faceManager: faceManager,
+                                progress: progress,
+                                animBrow: isUserTurn ? nil : animBrow,
+                                animPucker: isUserTurn ? nil : animPucker,
+                                showSuccessFeedback: showSuccessFeedback,
+                                stepColor: stepColor,
+                                scale: scale * 1.1 // Avatar um pouco maior no iPad
+                            )
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                } else {
+                    // --- LAYOUT VERTICAL (iPhone / iPad Portrait) ---
+                    VStack(spacing: 0) {
+                        Spacer()
+                        
+                        // Avatar no Centro/Topo (Hero)
+                        AvatarHeroArea(
+                            faceManager: faceManager,
+                            progress: progress,
+                            animBrow: isUserTurn ? nil : animBrow,
+                            animPucker: isUserTurn ? nil : animPucker,
+                            showSuccessFeedback: showSuccessFeedback,
+                            stepColor: stepColor,
+                            scale: scale
+                        )
+                        .padding(.top, 40)
+                        
+                        Spacer()
+                        
+                        // Texto e Controles na parte inferior (Mais acessível)
+                        VStack(spacing: 30 * scale) {
+                            InstructionText(step: currentStep, scale: scale, align: .center)
+                                .padding(.horizontal, 30)
+                            
+                            ControlsView(
+                                currentStep: currentStep,
+                                isUserTurn: isUserTurn,
+                                stepColor: stepColor,
+                                scale: scale,
+                                onAction: onCalibrationComplete
+                            )
+                        }
+                        .padding(.bottom, 50)
+                        .background(
+                            // Gradiente suave atrás do texto para leitura
+                            Rectangle()
+                                .fill(.ultraThinMaterial)
+                                .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .bottom))
+                                .ignoresSafeArea()
+                                .padding(.top, -100)
+                        )
+                    }
+                }
+            }
+        }
+        // Sensores
+        .onChange(of: faceManager.rawValues[.browUp]) { _, val in handleInput(Float(val ?? 0), gesture: .browUp) }
+        .onChange(of: faceManager.rawValues[.pucker]) { _, val in handleInput(Float(val ?? 0), gesture: .pucker) }
+        // Loop de Animação e Coleta
+        .onReceive(timer) { _ in
+            if currentStep == .neutral {
+                collectNeutralData()
+            } else if !isUserTurn && (currentStep == .brows || currentStep == .pucker) {
+                updateDemoLoop()
+            }
+        }
+    }
+    
+    // MARK: - Componentes Visuais
+    
+    struct InstructionText: View {
+        let step: CalibrationView.Step
+        let scale: CGFloat
+        let align: TextAlignment
+        
+        var body: some View {
+            VStack(alignment: align == .leading ? .leading : .center, spacing: 16 * scale) {
+                Text(title)
+                    .font(.juruFont(.largeTitle, weight: .heavy))
+                    .scaleEffect(scale)
+                    .foregroundStyle(color)
+                    .transition(.blurReplace)
+                    .id("T-\(step)")
+                
+                // Texto Secundário AUMENTADO como pedido
+                Text(description)
+                    .font(.system(size: 26 * scale, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.juruText.opacity(0.95))
+                    .multilineTextAlignment(align)
+                    .lineSpacing(6)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+                    .id("D-\(step)")
+            }
+        }
+        
+        var title: String {
+            switch step {
+            case .neutral: return "Relax Face"
+            case .brows: return "Navigation"
+            case .pucker: return "Selection"
+            case .done: return "All Set!"
+            }
+        }
+        
+        var description: String {
+            switch step {
+            case .neutral: return "Keep your face natural and still.\nFinding your zero point..."
+            case .brows: return "Raise your eyebrows high to verify range."
+            case .pucker: return "Make a kiss face to test selection."
+            case .done: return "Calibration complete.\nYour voice is ready."
+            }
+        }
+        
+        var color: Color {
+            switch step {
+            case .neutral: return .gray
+            case .brows: return .juruTeal
+            case .pucker: return .juruCoral
+            case .done: return .juruGold
+            }
+        }
+    }
+    
+    struct AvatarHeroArea: View {
+        var faceManager: FaceTrackingManager
+        let progress: CGFloat
+        let animBrow: Double?
+        let animPucker: Double?
+        let showSuccessFeedback: Bool
+        let stepColor: Color
+        let scale: CGFloat
+        
+        var body: some View {
+            let size = 260 * scale
+            ZStack {
+                // Anel Fundo
+                Circle()
+                    .stroke(Color.juruText.opacity(0.1), lineWidth: 24 * scale)
+                    .frame(width: size + 50, height: size + 50)
+                
+                // Anel Progresso
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(stepColor, style: StrokeStyle(lineWidth: 24 * scale, lineCap: .round))
+                    .frame(width: size + 50, height: size + 50)
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: stepColor.opacity(0.6), radius: 20)
+                    .animation(.linear(duration: 0.1), value: progress)
+                
+                // Avatar
+                JuruAvatarView(
+                    faceManager: faceManager,
+                    manualBrowUp: animBrow,
+                    manualPucker: animPucker,
+                    size: size
+                )
+                .opacity(showSuccessFeedback ? 0.3 : 1.0)
+                .blur(radius: showSuccessFeedback ? 15 : 0)
+                
+                // Feedback de Sucesso
+                if showSuccessFeedback {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 120 * scale))
+                        .foregroundStyle(.white)
+                        .shadow(color: stepColor, radius: 30)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+        }
+    }
+    
+    struct ControlsView: View {
+        let currentStep: CalibrationView.Step
+        let isUserTurn: Bool
+        let stepColor: Color
+        let scale: CGFloat
+        let onAction: () -> Void
+        
+        var body: some View {
+            VStack {
+                if currentStep == .done {
+                    Button(action: onAction) {
+                        Text("Go to Juru Main")
+                            .font(.system(size: 24 * scale, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.vertical, 22 * scale)
+                            .frame(maxWidth: 400 * scale)
+                            .background(Color.juruTeal)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.juruTeal.opacity(0.4), radius: 15, y: 5)
+                    }
+                } else if currentStep == .neutral {
+                    HStack(spacing: 16) {
+                        ProgressView().tint(.juruText).scaleEffect(1.5)
+                        Text("Calibrating...")
+                            .font(.system(size: 22 * scale, weight: .semibold))
+                            .foregroundStyle(Color.juruSecondaryText)
+                    }
+                    .padding(24 * scale)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                } else {
+                    HStack(spacing: 16 * scale) {
+                        Image(systemName: isUserTurn ? "record.circle.fill" : "eye.fill")
+                            .symbolEffect(.bounce, value: isUserTurn)
+                            .font(.system(size: 28 * scale))
+                        
+                        Text(isUserTurn ? "YOUR TURN" : "WATCH JURU")
+                            .font(.system(size: 24 * scale, weight: .bold))
+                    }
+                    .foregroundStyle(isUserTurn ? .white : Color.juruText)
+                    .padding(.horizontal, 40 * scale)
+                    .padding(.vertical, 20 * scale)
+                    .background(
+                        Capsule().fill(isUserTurn ? stepColor : Color.juruCardBackground)
+                            .shadow(color: isUserTurn ? stepColor.opacity(0.4) : Color.black.opacity(0.05), radius: 15)
+                    )
+                    .animation(.spring, value: isUserTurn)
+                }
+            }
+        }
+    }
+    
+    struct AmbientCalibrationBackground: View {
+        let step: CalibrationView.Step
+        let scale: CGFloat
+        var color: Color {
+            switch step {
+            case .neutral: return .gray
+            case .brows: return .juruTeal
+            case .pucker: return .juruCoral
+            case .done: return .juruGold
+            }
+        }
+        var body: some View {
+            GeometryReader { proxy in
+                Circle().fill(color.opacity(0.12))
+                    .frame(width: 800 * scale).blur(radius: 200)
+                    .position(x: proxy.size.width/2, y: proxy.size.height*0.5)
+                    .animation(.easeInOut(duration: 1.5), value: step)
+            }
+        }
+    }
+    
+    // MARK: - Logic & Animation Loop
     
     var stepColor: Color {
         switch currentStep {
@@ -37,187 +326,87 @@ struct CalibrationView: View {
         }
     }
     
-    var body: some View {
-        ZStack {
-            Color.juruBackground.ignoresSafeArea()
-            decorationBackground
+    // Atualiza a animação do Avatar (Demo)
+    func updateDemoLoop() {
+        timeAccumulator += 0.05
+        
+        if currentStep == .brows {
+            // Ciclo: 2.5 segundos
+            let cycle = timeAccumulator.truncatingRemainder(dividingBy: 2.5)
             
-            VStack(spacing: 0) {
-                headerView
-                Spacer()
-                avatarDisplayView
-                Spacer()
-                controlsView
+            if cycle < 0.5 { // Prepara
+                withAnimation(.spring(response: 0.4)) { animBrow = 0.0 }
+            } else if cycle < 1.5 { // Ação: Levanta Sobrancelha (Hold)
+                withAnimation(.spring(response: 0.3)) { animBrow = 1.0 }
+            } else { // Relaxa
+                withAnimation(.spring(response: 0.4)) { animBrow = 0.0 }
             }
-        }
-        .onChange(of: faceManager.rawValues[.browUp]) { _, val in handleInput(Float(val ?? 0), gesture: .browUp) }
-        .onChange(of: faceManager.rawValues[.pucker]) { _, val in handleInput(Float(val ?? 0), gesture: .pucker) }
-        .onReceive(neutralTimer) { _ in
-            if currentStep == .neutral { collectNeutralData() }
-        }
-    }
-    
-    private var decorationBackground: some View {
-        GeometryReader { proxy in
-            Circle()
-                .fill(stepColor.opacity(0.15))
-                .frame(width: 500, height: 500)
-                .blur(radius: 100)
-                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                .animation(.easeInOut(duration: 1.0), value: currentStep)
-        }
-    }
-    
-    private var headerView: some View {
-        VStack(spacing: 20) {
-            Text(stepTitle)
-                .font(.juruFont(.largeTitle, weight: .heavy))
-                .foregroundStyle(stepColor)
-                .multilineTextAlignment(.center)
-                .transition(.opacity)
-                .id("Title-\(currentStep)")
             
-            Text(stepDescription)
-                .font(.juruFont(.title3, weight: .medium))
-                .foregroundStyle(Color.juruText.opacity(0.9))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-                .fixedSize(horizontal: false, vertical: true)
-                .transition(.opacity)
-                .id("Desc-\(currentStep)")
-        }
-        .padding(.top, 60)
-        .frame(height: 200, alignment: .top)
-    }
-    
-    private var avatarDisplayView: some View {
-        ZStack {
-            Circle().stroke(Color.juruText.opacity(0.1), lineWidth: 20).frame(width: 280, height: 280)
+        } else if currentStep == .pucker {
+            // Ciclo: 2.5 segundos
+            let cycle = timeAccumulator.truncatingRemainder(dividingBy: 2.5)
             
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(stepColor, style: StrokeStyle(lineWidth: 20, lineCap: .round))
-                .frame(width: 280, height: 280)
-                .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 0.1), value: progress)
-            
-            JuruAvatarView(
-                faceManager: faceManager,
-                manualBrowUp: overrideBrows,
-                manualPucker: overridePucker,
-                size: 230
-            )
-        }
-        .scaleEffect(currentStep == .done ? 1.1 : 1.0)
-    }
-    
-    private var controlsView: some View {
-        VStack {
-            if currentStep == .done {
-                ActionButton(title: "Go to Juru Main", color: .juruTeal) {
-                    onCalibrationComplete()
-                }
-            } else if currentStep == .neutral {
-                VStack(spacing: 8) {
-                    ProgressView().tint(.juruText)
-                    Text("Relaxing Face Sensors...")
-                        .font(.juruFont(.headline))
-                        .foregroundStyle(Color.juruSecondaryText)
-                }
-            } else {
-                HStack(spacing: 12) {
-                    Image(systemName: isUserTurn ? "record.circle.fill" : "eye.fill")
-                        .symbolEffect(.bounce, value: isUserTurn)
-                    Text(isUserTurn ? "YOUR TURN: HOLD" : "OBSERVE JURU...")
-                }
-                .font(.juruFont(.headline, weight: .bold))
-                .foregroundStyle(isUserTurn ? .white : Color.juruText)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 16)
-                .background(
-                    Capsule().fill(isUserTurn ? stepColor : Color.juruCardBackground)
-                        .shadow(color: isUserTurn ? stepColor.opacity(0.4) : Color.black.opacity(0.1), radius: 10, y: 5)
-                )
-                .transition(.scale)
+            if cycle < 0.5 { // Prepara
+                withAnimation(.spring(response: 0.4)) { animPucker = 0.0 }
+            } else if cycle < 1.5 { // Ação: Bico (Hold)
+                withAnimation(.spring(response: 0.3)) { animPucker = 1.0 }
+            } else { // Relaxa
+                withAnimation(.spring(response: 0.4)) { animPucker = 0.0 }
             }
-        }
-        .frame(height: 100)
-        .padding(.bottom, 50)
-    }
-    
-    var overrideBrows: Double? {
-        if currentStep == .brows { return isUserTurn ? nil : demoValue }
-        return 0
-    }
-    var overridePucker: Double? {
-        if currentStep == .pucker { return isUserTurn ? nil : demoValue }
-        return 0
-    }
-    
-    var stepTitle: String {
-        switch currentStep {
-        case .neutral: return "Relax Face"
-        case .brows: return "Raise Brows"
-        case .pucker: return "Pucker Up"
-        case .done: return "Perfect!"
-        }
-    }
-    
-    var stepDescription: String {
-        switch currentStep {
-        case .neutral: return "Keep your face completely still and relaxed.\nFinding your zero point..."
-        case .brows: return isUserTurn ? "Now you! Raise eyebrows and HOLD." : "Watch Juru..."
-        case .pucker: return isUserTurn ? "Make a kiss face and HOLD." : "Watch Juru..."
-        case .done: return "Calibration saved.\nYou are ready to speak."
         }
     }
     
     func collectNeutralData() {
-        if neutralCollectionCount < 15 {
+        if neutralCount < 20 { // 1.0 segundo de calibração
             neutralBrowSum += faceManager.rawValues[.browUp] ?? 0
             neutralPuckerSum += faceManager.rawValues[.pucker] ?? 0
-            neutralCollectionCount += 1
-            withAnimation { progress = CGFloat(neutralCollectionCount) / 15.0 }
+            neutralCount += 1
+            withAnimation { progress = CGFloat(neutralCount) / 20.0 }
         } else {
-            let avgBrow = Float(neutralBrowSum / Double(neutralCollectionCount))
-            let avgPucker = Float(neutralPuckerSum / Double(neutralCollectionCount))
-            
+            let avgBrow = Float(neutralBrowSum / Double(neutralCount))
+            let avgPucker = Float(neutralPuckerSum / Double(neutralCount))
             faceManager.setRestingBase(for: .browUp, value: avgBrow)
             faceManager.setRestingBase(for: .pucker, value: avgPucker)
-            
-            runDemo(for: .brows)
+            triggerSuccessAndNext(to: .brows)
         }
     }
     
-    func runDemo(for step: Step) {
-        withAnimation(.spring) {
-            currentStep = step
-            isUserTurn = false
-            progress = 0.0
-            demoValue = 0.0
-        }
-        withAnimation(.easeInOut(duration: 1.0).repeatCount(2, autoreverses: true)) { demoValue = 1.0 }
+    func triggerSuccessAndNext(to nextStep: Step) {
+        let gen = UINotificationFeedbackGenerator()
+        gen.notificationOccurred(.success)
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.1) {
-            withAnimation(.spring) { isUserTurn = true }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { showSuccessFeedback = true }
+        
+        // Pausa de 1.2s para mostrar o sucesso
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation {
+                showSuccessFeedback = false
+                currentStep = nextStep
+                if nextStep != .done { isUserTurn = false }
+                progress = 0.0
+                timeAccumulator = 0.0 // Reset loop de animação
+                animBrow = 0.0
+                animPucker = 0.0
+            }
+            // Delay para dar a vez ao usuário após ver a demo
+            if nextStep != .done {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { // Demo roda por 3s
+                    withAnimation { isUserTurn = true }
+                }
+            }
         }
     }
     
-    func handleInput(_ rawValue: Float, gesture: FaceGesture) {
+    func handleInput(_ val: Float, gesture: FaceGesture) {
         guard isUserTurn else { return }
         
-        let isCorrectGesture: Bool
-        switch (currentStep, gesture) {
-        case (.brows, .browUp): isCorrectGesture = true
-        case (.pucker, .pucker): isCorrectGesture = true
-        default: isCorrectGesture = false
-        }
-        
         let base = faceManager.calibration.restingBase[gesture] ?? 0.0
-        let correctedValue = Double(rawValue) - base
+        let corrected = Double(val) - base
+        let correct = (currentStep == .brows && gesture == .browUp) || (currentStep == .pucker && gesture == .pucker)
         
-        if isCorrectGesture && correctedValue > 0.1 {
-            faceManager.setCalibrationMax(for: gesture, value: rawValue)
+        if correct && corrected > 0.1 {
+            faceManager.setCalibrationMax(for: gesture, value: val)
+            // Preenche o progresso conforme o usuário sustenta a expressão
             withAnimation(.linear(duration: 0.1)) { progress += 0.02 }
             if progress >= 1.0 { completeStep() }
         }
@@ -225,34 +414,7 @@ struct CalibrationView: View {
     
     func completeStep() {
         isUserTurn = false
-        let gen = UINotificationFeedbackGenerator()
-        gen.notificationOccurred(.success)
-        
-        switch currentStep {
-        case .brows: runDemo(for: .pucker)
-        case .pucker: withAnimation { currentStep = .done }
-        default: break
-        }
-    }
-}
-
-// Struct restaurada para corrigir o erro
-struct ActionButton: View {
-    let title: String
-    let color: Color
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.title3.bold())
-                .foregroundStyle(.white)
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity)
-                .background(color)
-                .clipShape(Capsule())
-                .shadow(color: color.opacity(0.3), radius: 10, y: 5)
-        }
-        .padding(.horizontal, 40)
+        if currentStep == .brows { triggerSuccessAndNext(to: .pucker) }
+        else if currentStep == .pucker { triggerSuccessAndNext(to: .done) }
     }
 }
