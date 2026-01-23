@@ -5,6 +5,13 @@
 //  Created by Antônio Paes De Andrade on 04/01/26.
 //
 
+//
+//  OnboardingView.swift
+//  Juru
+//
+//  Created by Antônio Paes De Andrade on 04/01/26.
+//
+
 import SwiftUI
 
 struct OnboardingView: View {
@@ -12,22 +19,24 @@ struct OnboardingView: View {
     var onFinished: () -> Void
     
     enum Phase: Int, CaseIterable {
-        case silence = 0    // O Problema
-        case roots          // A Origem (Raízes -> Texto)
-        case reveal         // A Revelação (Folhagem -> Logo)
-        case demoNav        // Demo Navegação
-        case demoPucker     // Demo Seleção
-        case ready          // Calibração
+        case silence = 0    // The Silent Forest (Paralysis)
+        case roots          // Ancestral Roots (Tupi Culture)
+        case reveal         // The Seed (Logo/Smile)
+        case demoNav        // Navigation Demo
+        case demoPuckerSelect // Selection Demo (Green)
+        case demoPuckerUndo   // Undo Demo (Red)
+        case ready          // Calibration Call
     }
     
     @State private var currentPhase: Phase = .silence
     
     var body: some View {
         ZStack {
-            AmbientBackground().ignoresSafeArea()
+            // Fundo Atmosférico que muda conforme a emoção da fase
+            AmbientationBackground(phase: currentPhase).ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // --- PALCO VISUAL ---
+                // --- PALCO VISUAL (TOP) ---
                 ZStack {
                     if currentPhase == .silence {
                         SilenceScene().transition(.opacity)
@@ -43,11 +52,12 @@ struct OnboardingView: View {
                     }
                 }
                 .frame(maxHeight: .infinity)
-                .padding(.top, 40)
+                .padding(.top, 60)
                 
-                // --- TEXTO E CONTROLES ---
+                // --- TEXTO E CONTROLES (BOTTOM) ---
                 VStack(spacing: 36) {
                     VStack(spacing: 16) {
+                        // Título Impactante
                         Text(titleText)
                             .font(.juruFont(.largeTitle, weight: .heavy))
                             .foregroundStyle(Color.juruText)
@@ -55,19 +65,20 @@ struct OnboardingView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                             .id("T\(currentPhase.rawValue)")
                         
+                        // Subtítulo Poético
                         Text(subtitleText)
                             .font(.juruFont(.title3, weight: .medium))
                             .foregroundStyle(Color.juruSecondaryText)
                             .multilineTextAlignment(.center)
-                            .lineSpacing(6)
+                            .lineSpacing(6) // Melhora a leitura de textos longos
                             .padding(.horizontal, 32)
                             .fixedSize(horizontal: false, vertical: true)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                             .id("S\(currentPhase.rawValue)")
                     }
                     
-                    // Indicadores
-                    HStack(spacing: 10) {
+                    // Indicadores de Progresso (Sementes)
+                    HStack(spacing: 12) {
                         ForEach(Phase.allCases, id: \.self) { p in
                             Circle()
                                 .fill(p == currentPhase ? Color.juruTeal : Color.gray.opacity(0.3))
@@ -77,7 +88,7 @@ struct OnboardingView: View {
                         }
                     }
                     
-                    // Botão
+                    // Botão de Ação
                     Button(action: nextPhase) {
                         Text(currentPhase == .ready ? "Begin Calibration" : "Continue")
                             .font(.juruFont(.headline, weight: .bold))
@@ -85,7 +96,11 @@ struct OnboardingView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
                             .background(
-                                LinearGradient(colors: [.juruTeal, .juruTeal.opacity(0.8)], startPoint: .top, endPoint: .bottom)
+                                LinearGradient(
+                                    colors: [.juruTeal, .juruTeal.opacity(0.8)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             )
                             .clipShape(Capsule())
                             .shadow(color: .juruTeal.opacity(0.4), radius: 20, y: 10)
@@ -94,6 +109,7 @@ struct OnboardingView: View {
                 }
                 .padding(.bottom, 60)
                 .background(
+                    // Vidro Fosco para garantir legibilidade sobre qualquer fundo
                     Rectangle()
                         .fill(.ultraThinMaterial)
                         .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .bottom))
@@ -115,13 +131,15 @@ struct OnboardingView: View {
         }
     }
     
+    // MARK: - Storytelling Text
     var titleText: String {
         switch currentPhase {
         case .silence: return "The Silent Forest"
         case .roots: return "Ancestral Roots"
         case .reveal: return "The Smile-Seed"
         case .demoNav: return "The Flow"
-        case .demoPucker: return "The Voice"
+        case .demoPuckerSelect: return "The Choice"
+        case .demoPuckerUndo: return "The Return"
         case .ready: return "Awaken Juru"
         }
     }
@@ -129,44 +147,51 @@ struct OnboardingView: View {
     var subtitleText: String {
         switch currentPhase {
         case .silence:
-            return "Paralysis is like a forest without birdsong.\nThe mind is vibrant, alive, and full of color,\nbut the voice remains trapped within."
+            return "Paralysis can feel like a forest without birdsong. Your mind is still alive and vibrant—but your voice is caught beneath the canopy."
         case .roots:
-            return "Deep in the Amazon, the Tupi people call the mouth 'Juru'.\nIt is more than a body part—it is the sacred gateway of the soul."
+            return "We turned to ancestral wisdom. In Tupi, Juru means Mouth—not just anatomy, but the sacred gateway of the soul."
         case .reveal:
-            return "Like a seed sprouting from the rich earth, a smile represents new life.\nThis symbol combines nature's growth with the curve of your joy."
+            return "Our symbol is a seed shaped like a smile. Planted in silence and nourished by technology, it blooms into your voice."
         case .demoNav:
-            return "Raise your eyebrows to guide the focus.\nLike a river flowing, the highlight moves to where you intend."
-        case .demoPucker:
-            return "A simple kiss (Pucker) breaks the silence.\nHold to select (Green). Hold longer to undo (Red)."
+            return "Your brows are the compass. Raise them to move focus, flowing smoothly through your options."
+        case .demoPuckerSelect:
+            return "A simple kiss becomes a command. Hold Pucker for 1s until the circle fills green to Select."
+        case .demoPuckerUndo:
+            return "Changed your mind? Keep holding for 2s until the circle turns red to Undo."
         case .ready:
-            return "Juru needs to learn the unique map of your face.\nRelax, breathe, and let's connect."
+            return "Every face is unique. Relax, breathe, and let Juru learn the map of your expressions."
         }
     }
 }
 
-// MARK: - Scene 1: The Silent Forest
+// MARK: - Visual Scenes
+
+// Scene 1: The Silent Forest (Darker, Melancholic but Hopeful)
 struct SilenceScene: View {
     @State private var animate = false
     
     var body: some View {
         ZStack {
+            // Árvores abstratas (Estáticas)
             HStack(spacing: 20) {
                 ForEach(0..<8) { i in
                     Capsule()
-                        .fill(Color.gray.opacity(0.1))
+                        .fill(Color.gray.opacity(0.15))
                         .frame(width: 4, height: CGFloat.random(in: 100...300))
                 }
             }
             
+            // Onda Sonora "Morta" (Linha Reta)
             RoundedRectangle(cornerRadius: 2)
                 .fill(Color.juruText.opacity(0.5))
                 .frame(width: 200, height: 2)
                 .overlay(
+                    // O Pulso da Mente (Vibrante mas contido)
                     Circle()
-                        .stroke(Color.juruText.opacity(0.3))
+                        .stroke(Color.juruTeal.opacity(0.5), lineWidth: 2)
                         .frame(width: 40, height: 40)
                         .scaleEffect(animate ? 1.5 : 0.5)
-                        .opacity(animate ? 0.0 : 0.5)
+                        .opacity(animate ? 0.0 : 0.8)
                         .animation(.easeOut(duration: 3.0).repeatForever(autoreverses: false), value: animate)
                 )
         }
@@ -174,47 +199,44 @@ struct SilenceScene: View {
     }
 }
 
-// MARK: - Scene 2: Ancestral Roots (Corrigido: Raízes somem, Texto aparece)
+// Scene 2: Ancestral Roots (Organic Growth)
 struct RootsScene: View {
     @State private var grow = false
     @State private var showText = false
     
     var body: some View {
         ZStack {
-            // As Vinhas (Agora desvanecem quando o texto aparece)
+            // Vinhas crescendo
             ZStack {
                 ForEach(0..<5) { i in
                     VineShape()
                         .trim(from: 0, to: grow ? 1 : 0)
                         .stroke(
-                            LinearGradient(colors: [.juruTeal, .green.opacity(0.5)], startPoint: .bottom, endPoint: .top),
-                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                            LinearGradient(colors: [.juruTeal, .green.opacity(0.6)], startPoint: .bottom, endPoint: .top),
+                            style: StrokeStyle(lineWidth: 5, lineCap: .round)
                         )
                         .frame(width: 120, height: 240)
                         .rotationEffect(.degrees(Double(i) * 72))
-                        .opacity(showText ? 0.15 : 1.0) // Ficam transparentes
+                        .opacity(showText ? 0.2 : 1.0) // Fade out para dar destaque ao texto
                         .animation(.easeInOut(duration: 2.0).delay(Double(i) * 0.2), value: grow)
                         .animation(.easeInOut(duration: 1.5), value: showText)
                 }
             }
             
-            // O Texto (Surge depois)
+            // A Palavra JURU surgindo
             Text("JURU")
                 .font(.system(size: 70, weight: .black, design: .rounded))
                 .foregroundStyle(
-                    LinearGradient(colors: [.juruTeal, .juruTeal.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    LinearGradient(colors: [.juruTeal, .juruTeal.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
-                .shadow(color: .juruTeal.opacity(0.3), radius: 20)
+                .shadow(color: .juruTeal.opacity(0.4), radius: 20)
                 .scaleEffect(showText ? 1.0 : 0.8)
                 .opacity(showText ? 1.0 : 0.0)
                 .animation(.spring(response: 0.8, dampingFraction: 0.7).delay(1.5), value: showText)
         }
         .onAppear {
             grow = true
-            // Dispara a troca de foco após as vinhas crescerem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                showText = true
-            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showText = true }
         }
     }
     
@@ -232,64 +254,43 @@ struct RootsScene: View {
     }
 }
 
-// MARK: - Scene 3: The Amazon Reveal (Corrigido: Imersão na Floresta)
+// Scene 3: The Amazon Reveal (Foliage & Logo)
 struct AmazonRevealScene: View {
     @State private var openJungle = false
     
     var body: some View {
         ZStack {
-            // CAMADA 1: A Logo (Semente/Berço)
-            // Surge do fundo
+            // A Logo (O Tesouro/Semente)
             Image("Juru-White")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 180)
-                .shadow(color: .juruTeal.opacity(0.6), radius: 30)
+                .shadow(color: .juruTeal.opacity(0.8), radius: 40) // Glow forte
                 .scaleEffect(openJungle ? 1.0 : 0.4)
                 .offset(y: openJungle ? 0 : 50)
                 .opacity(openJungle ? 1.0 : 0.0)
-                .animation(.spring(response: 1.2, dampingFraction: 0.8).delay(0.2), value: openJungle)
+                .animation(.spring(response: 1.2, dampingFraction: 0.8).delay(0.3), value: openJungle)
             
-            // CAMADA 2: Folhas de Fundo (O Berço)
+            // Camadas de Folhas (Efeito Parallax ao abrir)
             ZStack {
-                LeafShape() // Esquerda Fundo
-                    .fill(Color.juruTeal.opacity(0.1))
-                    .frame(width: 200, height: 300)
-                    .rotationEffect(.degrees(-20))
-                    .offset(x: -80, y: 20)
-                
-                LeafShape() // Direita Fundo
-                    .fill(Color.green.opacity(0.1))
-                    .frame(width: 200, height: 300)
-                    .rotationEffect(.degrees(20))
-                    .scaleEffect(x: -1, y: 1)
-                    .offset(x: 80, y: 40)
-            }
-            .scaleEffect(openJungle ? 1.1 : 0.9) // Efeito de respiração
-            .opacity(openJungle ? 1.0 : 0.0)
-            .animation(.easeInOut(duration: 2.0), value: openJungle)
-            
-            // CAMADA 3: Folhas da Frente (O Obstáculo que se abre)
-            // Efeito "Andando pela mata"
-            ZStack {
-                // Folha Grande Esquerda
+                // Folha Esquerda (Frente)
                 LeafShape()
                     .fill(LinearGradient(colors: [.green, .juruTeal], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 300, height: 500)
                     .rotationEffect(.degrees(-15))
-                    .offset(x: openJungle ? -400 : -100, y: openJungle ? 50 : 100) // Move para fora
-                    .opacity(openJungle ? 0.0 : 1.0) // E some
-                    .blur(radius: 4) // Profundidade de campo (perto da câmera)
+                    .offset(x: openJungle ? -450 : -100, y: openJungle ? 100 : 100)
+                    .opacity(openJungle ? 0.0 : 1.0)
+                    .blur(radius: 5) // Desfoque de profundidade
                 
-                // Folha Grande Direita
+                // Folha Direita (Frente)
                 LeafShape()
                     .fill(LinearGradient(colors: [.juruTeal, .green], startPoint: .topTrailing, endPoint: .bottomLeading))
                     .frame(width: 300, height: 500)
                     .rotationEffect(.degrees(15))
                     .scaleEffect(x: -1, y: 1)
-                    .offset(x: openJungle ? 400 : 100, y: openJungle ? -50 : 150) // Move para fora
+                    .offset(x: openJungle ? 450 : 100, y: openJungle ? -100 : 150)
                     .opacity(openJungle ? 0.0 : 1.0)
-                    .blur(radius: 4)
+                    .blur(radius: 5)
             }
             .animation(.easeInOut(duration: 1.8), value: openJungle)
         }
@@ -307,7 +308,7 @@ struct AmazonRevealScene: View {
     }
 }
 
-// MARK: - Tech Demos (Mantidos Perfeitos)
+// Scene 4 & 5 & 6: Tech Demos (Synchronized)
 struct TechDemoScene: View {
     var phase: OnboardingView.Phase
     var faceManager: FaceTrackingManager
@@ -323,6 +324,7 @@ struct TechDemoScene: View {
     
     var body: some View {
         HStack(spacing: 50) {
+            // UI Mock
             VStack(spacing: 20) {
                 if phase == .demoNav {
                     GlassCard(icon: "hand.wave", label: "Hello", isActive: activeIndex == 0)
@@ -343,6 +345,7 @@ struct TechDemoScene: View {
             }
             .frame(width: 140)
             
+            // Avatar
             JuruAvatarView(
                 faceManager: faceManager,
                 manualBrowUp: demoBrow,
@@ -365,7 +368,10 @@ struct TechDemoScene: View {
             .foregroundStyle(isActive ? .white : .primary.opacity(0.5))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(RoundedRectangle(cornerRadius: 16).fill(isActive ? Color.juruTeal : Color.gray.opacity(0.1)))
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isActive ? Color.juruTeal : Color.gray.opacity(0.1))
+            )
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(isActive ? .white.opacity(0.5) : .clear, lineWidth: 1))
             .shadow(color: isActive ? Color.juruTeal.opacity(0.4) : .clear, radius: 10)
             .scaleEffect(isActive ? 1.05 : 1.0)
@@ -384,20 +390,52 @@ struct TechDemoScene: View {
                 withAnimation(.spring(response: 0.3)) { demoBrow = 1.0 }
                 if cycle >= 1.0 && cycle < 1.05 { withAnimation { activeIndex = (activeIndex == 0 ? 1 : 0) } }
             } else { withAnimation(.spring(response: 0.4)) { demoBrow = 0.0 } }
-        } else if phase == .demoPucker {
-            let cycle = time.truncatingRemainder(dividingBy: 5.0)
-            if cycle < 0.5 { demoPucker = 0; puckerProgress = 0 }
-            else if cycle < 3.5 {
+        } else if phase == .demoPuckerSelect {
+            // Animação de Seleção (Verde)
+            let cycle = time.truncatingRemainder(dividingBy: 3.0)
+            if cycle < 0.5 {
+                demoPucker = 0; puckerProgress = 0
+            } else if cycle < 2.0 {
+                // Segura por 1.5s (simulando o select)
                 withAnimation(.spring) { demoPucker = 1.0 }
                 let holdTime = cycle - 0.5
-                if holdTime < 1.0 { puckerColor = .juruTeal; puckerProgress = holdTime / 0.8 }
-                else { puckerColor = .red; puckerProgress = min(1.0, 0.4 + (holdTime - 1.0) * 0.4) }
-            } else { withAnimation(.spring) { demoPucker = 0.0 }; puckerProgress = 0 }
+                // Enche até o verde e para
+                if holdTime < 1.2 {
+                    puckerColor = .juruTeal
+                    puckerProgress = holdTime / 1.0 // 1s para encher
+                } else {
+                    puckerProgress = 1.0
+                }
+            } else {
+                withAnimation(.spring) { demoPucker = 0.0 }; puckerProgress = 0
+            }
+        } else if phase == .demoPuckerUndo {
+            // Animação de Undo (Vermelho)
+            let cycle = time.truncatingRemainder(dividingBy: 4.5)
+            if cycle < 0.5 {
+                demoPucker = 0; puckerProgress = 0
+            } else if cycle < 3.5 {
+                withAnimation(.spring) { demoPucker = 1.0 }
+                let holdTime = cycle - 0.5
+                
+                // Passa pelo verde...
+                if holdTime < 1.2 {
+                    puckerColor = .juruTeal
+                    puckerProgress = holdTime / 1.0
+                } else {
+                    // ...e vai para o vermelho
+                    puckerColor = .red
+                    // Preenche o resto (supondo mais 1s ou mais para o undo)
+                    puckerProgress = min(1.0, 0.4 + (holdTime - 1.2) * 0.4) // Ajuste visual
+                }
+            } else {
+                withAnimation(.spring) { demoPucker = 0.0 }; puckerProgress = 0
+            }
         }
     }
 }
 
-// MARK: - Scene Final
+// Scene 7: Avatar Celebration
 struct AvatarCelebration: View {
     var faceManager: FaceTrackingManager
     @State private var dance = false
@@ -411,5 +449,52 @@ struct AvatarCelebration: View {
         .rotationEffect(.degrees(dance ? 5 : -5))
         .scaleEffect(dance ? 1.1 : 1.0)
         .onAppear { withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) { dance = true } }
+    }
+}
+
+// MARK: - Ambient Background
+struct AmbientationBackground: View {
+    var phase: OnboardingView.Phase
+    
+    var body: some View {
+        ZStack {
+            Color.juruBackground
+            
+            GeometryReader { proxy in
+                // Círculo Superior
+                Circle()
+                    .fill(topColor)
+                    .frame(width: 500)
+                    .blur(radius: 100)
+                    .offset(x: -100, y: -150)
+                
+                // Círculo Inferior
+                Circle()
+                    .fill(bottomColor)
+                    .frame(width: 400)
+                    .blur(radius: 80)
+                    .position(x: proxy.size.width, y: proxy.size.height * 0.8)
+            }
+        }
+        .animation(.easeInOut(duration: 1.5), value: phase)
+    }
+    
+    var topColor: Color {
+        switch phase {
+        case .silence: return Color.gray.opacity(0.15)
+        case .roots: return Color.green.opacity(0.2)
+        case .reveal: return Color.juruTeal.opacity(0.25)
+        default: return Color.juruTeal.opacity(0.15)
+        }
+    }
+    
+    var bottomColor: Color {
+        switch phase {
+        case .silence: return Color.black.opacity(0.2)
+        case .roots: return Color.juruTeal.opacity(0.15)
+        case .demoPuckerSelect: return Color.juruTeal.opacity(0.15)
+        case .demoPuckerUndo: return Color.juruCoral.opacity(0.15)
+        default: return Color.juruTeal.opacity(0.1)
+        }
     }
 }
