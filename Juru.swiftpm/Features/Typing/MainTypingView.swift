@@ -44,7 +44,6 @@ struct MainTypingView: View {
                     
                     Spacer()
                     
-                    // Indicador de Undo no topo também ajuda
                     if faceManager.puckerState == .readyToBack {
                         Label("Release to Undo", systemImage: "arrow.uturn.backward")
                             .font(.caption.bold())
@@ -84,15 +83,13 @@ struct MainTypingView: View {
                 
                 Spacer()
                 
-                // --- CURSOR CENTRAL COM FEEDBACK VISUAL ---
+                // --- CURSOR CENTRAL ---
                 ZStack {
-                    // Base do Feedback
                     FeedbackCenter(
                         faceManager: faceManager,
                         isSpeaking: vocabManager.isSpeaking
                     )
                     
-                    // Anel de Progresso Inteligente
                     if faceManager.puckerState != .idle && faceManager.puckerState != .cooldown {
                         ProgressRing(state: faceManager.puckerState, progress: faceManager.interactionProgress)
                             .frame(width: 160, height: 160)
@@ -110,7 +107,7 @@ struct MainTypingView: View {
                         title: vocabManager.leftLabel,
                         icon: "arrow.left",
                         color: .juruTeal,
-                        isActive: faceManager.isTriggeringLeft, // Visual Focus
+                        isActive: faceManager.isTriggeringLeft,
                         alignment: .leading
                     )
                     .opacity(shouldDim(.leftButton) ? 0.3 : 1.0)
@@ -124,7 +121,7 @@ struct MainTypingView: View {
                         title: vocabManager.rightLabel,
                         icon: "arrow.right",
                         color: .juruCoral,
-                        isActive: faceManager.isTriggeringRight, // Visual Focus
+                        isActive: faceManager.isTriggeringRight,
                         alignment: .trailing
                     )
                     .opacity(shouldDim(.rightButton) ? 0.3 : 1.0)
@@ -138,17 +135,29 @@ struct MainTypingView: View {
                 .padding(.horizontal, isPad ? 80 : 24)
                 .padding(.bottom, 20)
                 
-                // INSTRUÇÃO DE RODAPÉ DINÂMICA
                 Text(footerInstruction)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Color.juruSecondaryText)
                     .opacity(0.6)
                     .padding(.bottom, 20)
-                    .animation(.default, value: faceManager.puckerState)
             }
         }
         .onReceive(timer) { _ in
-            if !isPaused { vocabManager.update() }
+            if !isPaused {
+                // TRAVA DE SEGURANÇA (FOOLPROOF)
+                var allowAction = true
+                
+                if tutorialFocus == .leftButton && faceManager.currentFocusState == 2 {
+                    allowAction = false // Pediu Esquerda, olhou Direita -> BLOQUEIA
+                }
+                else if tutorialFocus == .rightButton && faceManager.currentFocusState == 1 {
+                    allowAction = false // Pediu Direita, olhou Esquerda -> BLOQUEIA
+                }
+                
+                if allowAction {
+                    vocabManager.update()
+                }
+            }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: tutorialFocus)
     }
@@ -169,20 +178,18 @@ struct MainTypingView: View {
     }
 }
 
-// NOVO COMPONENTE DE ANEL "APPLE-STYLE"
+// (Os structs auxiliares: ProgressRing, AmbientBackground, etc. permanecem os mesmos)
 struct ProgressRing: View {
     var state: PuckerState
     var progress: Double
-    
     var ringColor: Color {
         switch state {
         case .charging: return Color.gray.opacity(0.5)
-        case .readyToSelect: return Color.juruTeal // Verde Juru
-        case .readyToBack: return Color.red // Perigo
+        case .readyToSelect: return Color.juruTeal
+        case .readyToBack: return Color.red
         default: return .clear
         }
     }
-    
     var iconName: String {
         switch state {
         case .readyToSelect: return "checkmark"
@@ -190,64 +197,29 @@ struct ProgressRing: View {
         default: return "circle.fill"
         }
     }
-    
     var body: some View {
         ZStack {
-            // Fundo do anel
-            Circle()
-                .stroke(Color.white.opacity(0.1), lineWidth: 8)
-            
-            // O Anel de Progresso
-            Circle()
-                .trim(from: 0.0, to: progress)
-                .stroke(
-                    ringColor,
-                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                )
+            Circle().stroke(Color.white.opacity(0.1), lineWidth: 8)
+            Circle().trim(from: 0.0, to: progress)
+                .stroke(ringColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 0.05), value: progress)
-            
-            // Ícone Central (Feedback do que vai acontecer)
             if state == .readyToSelect || state == .readyToBack {
-                Circle()
-                    .fill(ringColor)
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: iconName)
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                    )
-                    .offset(y: -90) // Flutua acima do avatar
-                    .transition(.scale.combined(with: .opacity))
+                Circle().fill(ringColor).frame(width: 40, height: 40)
+                    .overlay(Image(systemName: iconName).font(.system(size: 20, weight: .bold)).foregroundStyle(.white))
+                    .offset(y: -90).transition(.scale.combined(with: .opacity))
             }
         }
     }
 }
 
-// Mantivemos os outros componentes visuais (AmbientBackground, TypingDisplayCard, etc.)
-// iguais ao anterior, apenas integrando o ProgressRing acima.
-// (Copie os structs auxiliares do arquivo anterior aqui se necessário)
-
-// ... Resto dos structs auxiliares (FeedbackCenter, ActionCard etc) ...
 struct AmbientBackground: View {
-    @Environment(\.colorScheme) var colorScheme
-    
     var body: some View {
         ZStack {
             Color.juruBackground.ignoresSafeArea()
-            
             GeometryReader { proxy in
-                Circle()
-                    .fill(Color.juruTeal.opacity(0.08))
-                    .frame(width: 600, height: 600)
-                    .blur(radius: 100)
-                    .offset(x: -200, y: -200)
-                
-                Circle()
-                    .fill(Color.juruCoral.opacity(0.08))
-                    .frame(width: 500, height: 500)
-                    .blur(radius: 100)
-                    .position(x: proxy.size.width, y: proxy.size.height)
+                Circle().fill(Color.juruTeal.opacity(0.08)).frame(width: 600, height: 600).blur(radius: 100).offset(x: -200, y: -200)
+                Circle().fill(Color.juruCoral.opacity(0.08)).frame(width: 500, height: 500).blur(radius: 100).position(x: proxy.size.width, y: proxy.size.height)
             }
         }
     }
@@ -256,7 +228,6 @@ struct AmbientBackground: View {
 struct TypingDisplayCard: View {
     var text: String
     @Environment(\.colorScheme) var colorScheme
-    
     var body: some View {
         VStack(alignment: .leading) {
             ScrollView {
@@ -271,17 +242,13 @@ struct TypingDisplayCard: View {
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
         .shadow(color: Color.black.opacity(0.05), radius: 20, x: 0, y: 10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .stroke(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).stroke(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), lineWidth: 1))
     }
 }
 
 struct SuggestionBar: View {
     var suggestions: [String]
     @Environment(\.horizontalSizeClass) var sizeClass
-    
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
@@ -289,15 +256,12 @@ struct SuggestionBar: View {
                     Text(word)
                         .font(.system(.body, design: .rounded).weight(.semibold))
                         .foregroundStyle(Color.primary)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
-                        .background(.thinMaterial)
-                        .clipShape(Capsule())
+                        .padding(.horizontal, 24).padding(.vertical, 14)
+                        .background(.thinMaterial).clipShape(Capsule())
                         .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
                 }
             }
-            .padding(.horizontal, sizeClass == .regular ? 80 : 24)
-            .padding(.vertical, 10)
+            .padding(.horizontal, sizeClass == .regular ? 80 : 24).padding(.vertical, 10)
         }
     }
 }
@@ -305,57 +269,29 @@ struct SuggestionBar: View {
 struct FeedbackCenter: View {
     var faceManager: FaceTrackingManager
     var isSpeaking: Bool
-    
     var activeColor: Color {
         if faceManager.currentFocusState == 1 { return .juruTeal }
         if faceManager.currentFocusState == 2 { return .juruCoral }
         return .clear
     }
-    
     var body: some View {
         HStack(spacing: 40) {
             IntensityGauge(value: faceManager.browUp, color: .juruTeal, isLeft: true)
-            
             ZStack {
                 if isSpeaking {
                     ForEach(0..<3) { i in
-                        Circle()
-                            .stroke(
-                                LinearGradient(colors: [.juruTeal, .juruCoral], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                lineWidth: 2
-                            )
-                            .frame(width: 120, height: 120)
-                            .scaleEffect(isSpeaking ? 2.0 : 1.0)
-                            .opacity(isSpeaking ? 0.0 : 1.0)
-                            .animation(
-                                .easeOut(duration: 1.5)
-                                .repeatForever(autoreverses: false)
-                                .delay(Double(i) * 0.4),
-                                value: isSpeaking
-                            )
+                        Circle().stroke(LinearGradient(colors: [.juruTeal, .juruCoral], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 2)
+                            .frame(width: 120, height: 120).scaleEffect(isSpeaking ? 2.0 : 1.0).opacity(isSpeaking ? 0.0 : 1.0)
+                            .animation(.easeOut(duration: 1.5).repeatForever(autoreverses: false).delay(Double(i) * 0.4), value: isSpeaking)
                     }
                 }
-                
                 if !isSpeaking {
-                    Circle()
-                        .fill(activeColor.opacity(0.2))
-                        .frame(width: 140, height: 140)
-                        .blur(radius: 20)
-                        .scaleEffect(activeColor == .clear ? 0.5 : 1.2)
-                        .animation(.spring, value: activeColor)
+                    Circle().fill(activeColor.opacity(0.2)).frame(width: 140, height: 140).blur(radius: 20)
+                        .scaleEffect(activeColor == .clear ? 0.5 : 1.2).animation(.spring, value: activeColor)
                 }
-                
-                Circle()
-                    .fill(Color.juruCardBackground)
-                    .shadow(color: Color.black.opacity(0.15), radius: 15, y: 8)
-                    .frame(width: 120, height: 120)
-                
-                JuruAvatarView(
-                    faceManager: faceManager,
-                    size: 100
-                )
+                Circle().fill(Color.juruCardBackground).shadow(color: Color.black.opacity(0.15), radius: 15, y: 8).frame(width: 120, height: 120)
+                JuruAvatarView(faceManager: faceManager, size: 100)
             }
-            
             IntensityGauge(value: faceManager.mouthPucker, color: .juruCoral, isLeft: false)
         }
     }
@@ -364,15 +300,12 @@ struct FeedbackCenter: View {
 struct IntensityGauge: View {
     var value: Double; var color: Color; var isLeft: Bool
     private var fillHeight: CGFloat { let visualValue = CGFloat(min(value * 1.5, 1.0)); return visualValue * 60 }
-    
     var body: some View {
         HStack(spacing: 8) {
             if isLeft { label }
             ZStack(alignment: .bottom) {
                 Capsule().fill(Color.gray.opacity(0.1)).frame(width: 6, height: 60)
-                Capsule().fill(color).frame(width: 6, height: fillHeight)
-                    .shadow(color: color.opacity(0.5), radius: 4)
-                    .animation(.linear(duration: 0.1), value: value)
+                Capsule().fill(color).frame(width: 6, height: fillHeight).shadow(color: color.opacity(0.5), radius: 4).animation(.linear(duration: 0.1), value: value)
             }
             if !isLeft { label }
         }
@@ -381,51 +314,21 @@ struct IntensityGauge: View {
 }
 
 struct ActionCard: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let isActive: Bool
-    let alignment: Alignment
-    
+    let title: String; let icon: String; let color: Color; let isActive: Bool; let alignment: Alignment
     var body: some View {
         ZStack(alignment: alignment) {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: isActive ? [color, color.opacity(0.8)] : [Color.juruCardBackground, Color.juruCardBackground.opacity(0.9)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .shadow(
-                    color: isActive ? color.opacity(0.4) : Color.black.opacity(0.05),
-                    radius: isActive ? 20 : 10,
-                    y: isActive ? 10 : 5
-                )
-            
+                .fill(LinearGradient(colors: isActive ? [color, color.opacity(0.8)] : [Color.juruCardBackground, Color.juruCardBackground.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .shadow(color: isActive ? color.opacity(0.4) : Color.black.opacity(0.05), radius: isActive ? 20 : 10, y: isActive ? 10 : 5)
             VStack(alignment: alignment == .leading ? .leading : .trailing) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(isActive ? .white : color)
-                    .padding(12)
-                    .background(
-                        Circle()
-                            .fill(isActive ? .white.opacity(0.2) : color.opacity(0.1))
-                    )
-                
+                Image(systemName: icon).font(.title3).foregroundStyle(isActive ? .white : color).padding(12)
+                    .background(Circle().fill(isActive ? .white.opacity(0.2) : color.opacity(0.1)))
                 Spacer()
-                
-                Text(title)
-                    .font(.juruFont(.title2, weight: .bold))
-                    .foregroundStyle(isActive ? .white : Color.primary)
-                    .multilineTextAlignment(alignment == .leading ? .leading : .trailing)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.4)
-                    .padding(.bottom, 4)
+                Text(title).font(.juruFont(.title2, weight: .bold)).foregroundStyle(isActive ? .white : Color.primary)
+                    .multilineTextAlignment(alignment == .leading ? .leading : .trailing).lineLimit(3).minimumScaleFactor(0.4).padding(.bottom, 4)
             }
             .padding(24)
         }
-        .scaleEffect(isActive ? 1.02 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isActive)
+        .scaleEffect(isActive ? 1.02 : 1.0).animation(.spring(response: 0.3, dampingFraction: 0.6), value: isActive)
     }
 }

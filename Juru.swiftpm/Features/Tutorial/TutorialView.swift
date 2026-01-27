@@ -17,19 +17,54 @@ struct TutorialView: View {
     enum StoryPhase: Equatable {
         case intro
         
-        case pain_Intro
-        case pain_Switch    // Levantar sobrancelha para trocar o foco
-        case pain_Select    // Fazer bico para confirmar
+        // --- 1. MECÂNICAS BÁSICAS ---
+        case mech_Brows     // Navegar
+        case mech_Pucker    // Selecionar
+        case mech_Undo      // Voltar
         
-        case typeH_Intro
-        case typeH_FocusLeft
-        case typeH_SelectLeft
-        case typeH_FocusRight
-        case typeH_SelectRight
-        case typeH_Confirm
+        // --- 2. QUICK WORDS (Pain) ---
+        case quick_Intro        // "Cenário: Sentindo dor"
+        case quick_FocusRoot    // "Olhe Direita (Quick Words)"
+        case quick_OpenRoot     // "Abra o menu"
         
-        case undo_Intro
-        case undo_Action // Long Press
+        case quick_FocusGroup   // "Pain está na Direita (Já vai estar lá)"
+        case quick_SelectGroup  // "Selecione o grupo"
+        
+        case quick_FocusFinal   // "Agora Pain está na Esquerda"
+        case quick_SelectPain   // "Selecione Pain"
+        
+        // --- 3. DIGITAR "H" ---
+        case type_Intro         // "Agora vamos digitar H"
+        case type_FocusLeft     // "Letters (Esq)"
+        case type_OpenLetters   // "Abra Letters"
+        case type_SelectAM      // "A - M (Esq)"
+        case type_SelectHM      // "H - M (Dir)"
+        case type_SelectHI      // "H - J (Esq)"
+        case type_SelectH       // "Selecione H (Esq)"
+        
+        // --- 4. PREDICT "HELP" ---
+        case predict_Intro      // "Veja sugestões na direita"
+        case predict_FocusRight // "Olhe Direita"
+        case predict_OpenMenu   // "Abra Menu"
+        case predict_SelectHelp // "Selecione Help"
+        
+        // --- 5. CORREÇÃO (Hel) ---
+        case mistake_Intro      // "Ops, queríamos Hello!"
+        case delete_Space       // "Segure Pucker (Vermelho) para apagar espaço"
+        case delete_P           // "Segure Pucker (Vermelho) para apagar P"
+        
+        // --- 6. PREDICT "HELLO" ---
+        case fix_Intro          // "Agora 'Hel' sugere Hello"
+        case fix_FocusRight     // "Olhe Direita"
+        case fix_SelectHello    // "Selecione Hello"
+        
+        // --- 7. SPEAK & CLEAR ---
+        case speak_Intro        // "Vamos falar"
+        case speak_OpenMenu     // "Abra menu Direita"
+        case speak_SelectAction // "Selecione Speak"
+        
+        case clear_Intro        // "Limpar tela"
+        case clear_SelectAction // "Selecione Clear"
         
         case completed
     }
@@ -38,8 +73,6 @@ struct TutorialView: View {
     @State private var title: String = ""
     @State private var subtitle: String = ""
     @State private var isSuccessFeedback: Bool = false
-    
-    // Controle para evitar múltiplos disparos
     @State private var isTransitioning: Bool = false
     
     @Environment(\.horizontalSizeClass) var sizeClass
@@ -59,12 +92,33 @@ struct TutorialView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         
         .onAppear { startStory() }
-        // Monitora mudanças no foco (Sobrancelha)
+        
+        // --- MONITORES DE ESTADO (Eventos) ---
         .onChange(of: faceManager.currentFocusState) { checkNavigation() }
-        // Monitora mudanças no texto (Seleção via Bico)
-        .onChange(of: vocabManager.currentMessage) { checkMessage() }
-        // Monitora ação de desfazer
+        .onChange(of: faceManager.puckerState) { checkPucker() }
         .onChange(of: faceManager.isBackingOut) { checkUndo() }
+        
+        // --- MONITORES DE CONTEXTO (Dados) ---
+        .onChange(of: vocabManager.leftLabel) { checkContext() }
+        .onChange(of: vocabManager.rightLabel) { checkContext() }
+        .onChange(of: vocabManager.currentMessage) { checkTyping() }
+        .onChange(of: vocabManager.isSpeaking) { checkSpeaking() }
+        
+        // --- CORREÇÃO DO BUG "JÁ ESTOU LÁ" ---
+        // Assim que a transição de fase termina, verifica se o usuário JÁ está no estado correto
+        .onChange(of: isTransitioning) { _, newValue in
+            if !newValue { checkAllConditions() }
+        }
+    }
+    
+    // Função Mestra: Verifica tudo de uma vez (usada ao iniciar uma fase)
+    func checkAllConditions() {
+        checkNavigation()
+        checkPucker()
+        checkUndo()
+        checkContext()
+        checkTyping()
+        checkSpeaking()
     }
     
     var instructionCard: some View {
@@ -110,99 +164,127 @@ struct TutorialView: View {
         .padding(24)
         .background(
             RoundedRectangle(cornerRadius: 24)
-                .fill(
-                    isSuccessFeedback
-                    ? AnyShapeStyle(Color.juruTeal)
-                    : AnyShapeStyle(Material.regular)
-                )
+                .fill(isSuccessFeedback ? AnyShapeStyle(Color.juruTeal) : AnyShapeStyle(Material.regular))
                 .shadow(color: Color.black.opacity(0.1), radius: 15, y: 5)
         )
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: phase)
-        .animation(.easeInOut, value: isSuccessFeedback)
     }
     
-    // Lógica de Navegação (Sobrancelha)
+    // MARK: - Lógica de Verificação
+    
     func checkNavigation() {
         guard !isTransitioning else { return }
         
-        switch phase {
-        case .pain_Switch:
-            // Objetivo: Ir para a Direita
-            if faceManager.currentFocusState == 2 {
-                advance(to: .pain_Select)
-            }
-            
-        case .typeH_FocusLeft:
-            // Objetivo: Ir para a Esquerda
-            if faceManager.currentFocusState == 1 {
-                advance(to: .typeH_SelectLeft)
-            }
-            
-        case .typeH_FocusRight:
-            // Objetivo: Ir para a Direita (H-M)
-            if faceManager.currentFocusState == 2 {
-                advance(to: .typeH_SelectRight)
-            }
-            
-        default: break
+        // 1. Mecânica
+        if phase == .mech_Brows && faceManager.currentFocusState != 0 {
+            advance(to: .mech_Pucker)
         }
+        
+        // Navegação Guiada (Agora aceita se já estiver olhando)
+        if phase == .quick_FocusRoot && faceManager.currentFocusState == 2 { advance(to: .quick_OpenRoot) }
+        if phase == .quick_FocusGroup && faceManager.currentFocusState == 2 { advance(to: .quick_SelectGroup) }
+        if phase == .quick_FocusFinal && faceManager.currentFocusState == 1 { advance(to: .quick_SelectPain) }
+        
+        if phase == .type_FocusLeft && faceManager.currentFocusState == 1 { advance(to: .type_OpenLetters) }
+        if phase == .predict_FocusRight && faceManager.currentFocusState == 2 { advance(to: .predict_OpenMenu) }
+        if phase == .fix_FocusRight && faceManager.currentFocusState == 2 { advance(to: .fix_SelectHello) }
     }
     
-    // Lógica de Mensagem (Bico/Seleção)
-    func checkMessage() {
+    func checkPucker() {
         guard !isTransitioning else { return }
-        let msg = vocabManager.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        
-        switch phase {
-        case .pain_Select:
-             // Espera que QUALQUER coisa seja selecionada nos Quick Words
-             if !msg.isEmpty {
-                 // Limpa a mensagem para a próxima etapa não pegar lixo
-                 vocabManager.currentMessage = ""
-                 advance(to: .typeH_Intro, delay: 1.5)
-             }
-             
-        case .typeH_SelectLeft:
-             // Verificamos se o Label mudou, indicando que entrou no grupo
-             if !vocabManager.leftLabel.contains("Letters") {
-                 advance(to: .typeH_FocusRight)
-             }
-             
-        case .typeH_SelectRight:
-             // Verificamos se entrou no subgrupo (H-M)
-             // Assumindo que a navegação funcionou, apenas avançamos
-             advance(to: .typeH_Confirm)
-             
-        case .typeH_Confirm:
-             // Verifica se a letra H foi digitada
-             if msg.contains("H") {
-                 advance(to: .undo_Intro, delay: 1.0)
-             }
-             
-        default: break
+        if phase == .mech_Pucker && faceManager.puckerState == .readyToSelect {
+            advance(to: .mech_Undo)
         }
     }
     
     func checkUndo() {
         guard !isTransitioning else { return }
-        
-        if phase == .undo_Action && faceManager.isBackingOut {
+        if phase == .mech_Undo && faceManager.isBackingOut {
+            advance(to: .quick_Intro)
+        }
+        if (phase == .delete_Space || phase == .delete_P) && faceManager.isBackingOut {
             triggerSuccess()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                onTutorialComplete()
+        }
+    }
+    
+    func checkContext() {
+        guard !isTransitioning else { return }
+        let left = vocabManager.leftLabel
+        let right = vocabManager.rightLabel
+        
+        switch phase {
+        // Quick Words
+        case .quick_OpenRoot:
+            if right.contains("Pain") || right.contains("Water") { advance(to: .quick_FocusGroup) }
+        case .quick_SelectGroup:
+            if left == "Pain" { advance(to: .quick_FocusFinal) }
+            
+        // Type H
+        case .type_OpenLetters:
+            if left.contains("-") || left.contains("A") { advance(to: .type_SelectAM) }
+        case .type_SelectAM:
+            if right.contains("H") { advance(to: .type_SelectHM) }
+        case .type_SelectHM:
+            if left.contains("H") { advance(to: .type_SelectHI) }
+        case .type_SelectHI:
+            if left == "H" { advance(to: .type_SelectH) }
+            
+        // Predict Help
+        case .predict_OpenMenu:
+            if left == "Help" || right == "Help" || right.contains("Space") { advance(to: .predict_SelectHelp) }
+            
+        // Speak
+        case .speak_OpenMenu:
+            if right.contains("Speak") { advance(to: .speak_SelectAction) }
+            
+        default: break
+        }
+    }
+    
+    func checkSpeaking() {
+        guard !isTransitioning else { return }
+        if vocabManager.isSpeaking {
+            if phase == .quick_SelectPain {
+                advance(to: .type_Intro, delay: 2.0)
+            } else if phase == .speak_SelectAction {
+                advance(to: .clear_Intro, delay: 2.0)
             }
         }
     }
     
+    func checkTyping() {
+        guard !isTransitioning else { return }
+        let msg = vocabManager.currentMessage
+        
+        switch phase {
+        case .type_SelectH:
+            if msg.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("H") {
+                advance(to: .predict_Intro, delay: 0.5)
+            }
+        case .predict_SelectHelp:
+            if msg.contains("Help") {
+                advance(to: .mistake_Intro, delay: 1.0)
+            }
+        case .delete_Space:
+            if msg == "Help" { advance(to: .delete_P) }
+        case .delete_P:
+            if msg == "Hel" { advance(to: .fix_Intro) }
+        case .fix_SelectHello:
+            if msg.contains("Hello") { advance(to: .speak_Intro, delay: 1.0) }
+        case .clear_SelectAction:
+            if msg.isEmpty { advance(to: .completed) }
+        default: break
+        }
+    }
+    
+    // --- CONTROLE DE FLUXO ---
+    
     func advance(to next: StoryPhase, delay: Double = 0.0) {
-        // Bloqueia múltiplas chamadas
         isTransitioning = true
-        
         triggerSuccess()
-        
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             setPhase(next)
-            // Libera transições após a mudança de fase ter assentado
+            // Libera a trava após meio segundo e roda a verificação total
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.isTransitioning = false
             }
@@ -212,23 +294,33 @@ struct TutorialView: View {
     func setPhase(_ p: StoryPhase) {
         withAnimation { phase = p; updateTexts() }
         
-        // Auto-avanço para fases apenas informativas
-        let autoDelay: Double = 4.5
+        let readTime = 4.0
         switch p {
-        case .pain_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) {
-                if phase == .pain_Intro { setPhase(.pain_Switch) }
-            }
-        case .typeH_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) {
-                if phase == .typeH_Intro { setPhase(.typeH_FocusLeft) }
-            }
-        case .undo_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + autoDelay) {
-                if phase == .undo_Intro { setPhase(.undo_Action) }
-            }
+        case .intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .intro { setPhase(.mech_Brows) } }
+        case .quick_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .quick_Intro { setPhase(.quick_FocusRoot) } }
+        case .type_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .type_Intro { setPhase(.type_FocusLeft) } }
+        case .predict_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .predict_Intro { setPhase(.predict_FocusRight) } }
+        case .mistake_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { if phase == .mistake_Intro { setPhase(.delete_Space) } }
+        case .fix_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .fix_Intro { setPhase(.fix_FocusRight) } }
+        case .speak_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .speak_Intro { setPhase(.speak_OpenMenu) } }
+        case .clear_Intro:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .clear_Intro { setPhase(.clear_SelectAction) } }
+        case .completed:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { onTutorialComplete() }
         default: break
         }
+    }
+    
+    func startStory() {
+        vocabManager.currentMessage = ""
+        setPhase(.intro)
     }
     
     func triggerSuccess() {
@@ -236,86 +328,157 @@ struct TutorialView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { withAnimation { isSuccessFeedback = false } }
     }
     
-    func startStory() {
-        vocabManager.currentMessage = ""
-        setPhase(.intro)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { setPhase(.pain_Intro) }
-    }
-    
     func updateTexts() {
         switch phase {
         case .intro:
-            title = "Welcome"; subtitle = "Let's learn the Brow-Scanner."
+            title = "Welcome"; subtitle = "Let's master Juru."
             currentFocus = .none
             
-        // --- PAIN ---
-        case .pain_Intro:
-            title = "Navigation"; subtitle = "Raise your eyebrows to move the cursor."
+        case .mech_Brows:
+            title = "Navigation"; subtitle = "Raise Brows to verify menu control."
             currentFocus = .none
-        case .pain_Switch:
-            title = "Move Focus"; subtitle = "Raise Brows until RIGHT button glows."
+        case .mech_Pucker:
+            title = "Selection"; subtitle = "Hold Pucker until green to confirm."
+            currentFocus = .none
+        case .mech_Undo:
+            title = "Undo"; subtitle = "Hold Pucker longer (Red) to go back."
+            currentFocus = .none
+            
+        // Quick Words
+        case .quick_Intro:
+            title = "Scenario 1"; subtitle = "You are in pain and need help fast."
+            currentFocus = .none
+        case .quick_FocusRoot:
+            title = "Quick Words"; subtitle = "Look RIGHT to find 'Quick Words'."
             currentFocus = .rightButton
-        case .pain_Select:
-            title = "Select It"; subtitle = "Release Pucker to select 'Quick Words'."
+        case .quick_OpenRoot:
+            title = "Open Menu"; subtitle = "Hold Pucker to open it."
+            currentFocus = .rightButton
+        case .quick_FocusGroup:
+            title = "Find 'Pain'"; subtitle = "Look RIGHT again. 'Pain' is in this group."
+            currentFocus = .rightButton
+        case .quick_SelectGroup:
+            title = "Open Group"; subtitle = "Select the group to see 'Pain'."
+            currentFocus = .rightButton
+        case .quick_FocusFinal:
+            title = "Select 'Pain'"; subtitle = "Now look LEFT. Select 'Pain' to speak."
+            currentFocus = .leftButton
+        case .quick_SelectPain:
+            title = "Confirm"; subtitle = "Hold Pucker to say 'Pain'."
+            currentFocus = .leftButton
+            
+        // Type H
+        case .type_Intro:
+            title = "Scenario 2"; subtitle = "Now let's type 'Help'."
+            currentFocus = .none
+        case .type_FocusLeft:
+            title = "Letters"; subtitle = "Look LEFT to find 'Letters'."
+            currentFocus = .leftButton
+        case .type_OpenLetters:
+            title = "Open Letters"; subtitle = "Hold Pucker to enter."
+            currentFocus = .leftButton
+        case .type_SelectAM:
+            title = "A - M"; subtitle = "Select the first group (Left)."
+            currentFocus = .leftButton
+        case .type_SelectHM:
+            title = "H - M"; subtitle = "Now look RIGHT for H group."
+            currentFocus = .rightButton
+        case .type_SelectHI:
+            title = "H - I"; subtitle = "Narrow down on the LEFT."
+            currentFocus = .leftButton
+        case .type_SelectH:
+            title = "Select H"; subtitle = "Select 'H' on the LEFT."
+            currentFocus = .leftButton
+            
+        // Predict
+        case .predict_Intro:
+            title = "Smart Predict"; subtitle = "See suggestions on the RIGHT?"
+            currentFocus = .none
+        case .predict_FocusRight:
+            title = "Suggestions"; subtitle = "Raise Brows to highlight RIGHT."
+            currentFocus = .rightButton
+        case .predict_OpenMenu:
+            title = "Open Predictions"; subtitle = "Pucker to see words."
+            currentFocus = .rightButton
+        case .predict_SelectHelp:
+            title = "Select 'Help'"; subtitle = "Choose 'Help' from the list."
+            currentFocus = .none
+            
+        // Mistake
+        case .mistake_Intro:
+            title = "Oops!"; subtitle = "We actually wanted 'Hello'."
+            currentFocus = .none
+        case .delete_Space:
+            title = "Delete Space"; subtitle = "Hold Pucker (Red) to delete space."
+            currentFocus = .none
+        case .delete_P:
+            title = "Delete 'p'"; subtitle = "Hold Pucker (Red) again to delete 'p'."
+            currentFocus = .none
+            
+        // Fix
+        case .fix_Intro:
+            title = "Fixed!"; subtitle = "Now 'Hel' predicts 'Hello'."
+            currentFocus = .none
+        case .fix_FocusRight:
+            title = "Look Right"; subtitle = "Go back to predictions."
+            currentFocus = .rightButton
+        case .fix_SelectHello:
+            title = "Select 'Hello'"; subtitle = "Choose it correctly this time."
             currentFocus = .rightButton
             
-        // --- TYPE H ---
-        case .typeH_Intro:
-            title = "Typing"; subtitle = "Let's type the letter 'H'."
+        // Speak
+        case .speak_Intro:
+            title = "Speak it"; subtitle = "Let's say it out loud."
             currentFocus = .none
-        case .typeH_FocusLeft:
-            title = "Find Letters"; subtitle = "Raise Brows to highlight LEFT."
-            currentFocus = .leftButton
-        case .typeH_SelectLeft:
-            title = "Open Group"; subtitle = "Release Pucker to open A-Z."
-            currentFocus = .leftButton
-        case .typeH_FocusRight:
-            title = "Narrow Down"; subtitle = "Raise Brows to highlight RIGHT."
+        case .speak_OpenMenu:
+            title = "Edit Menu"; subtitle = "Open the RIGHT menu."
             currentFocus = .rightButton
-        case .typeH_SelectRight:
-            title = "Select Group"; subtitle = "Release Pucker to open group."
-            currentFocus = .rightButton
-        case .typeH_Confirm:
-            title = "Finish H"; subtitle = "Find 'H' and Select it.";
-            currentFocus = .leftButton
+        case .speak_SelectAction:
+            title = "Press Speak"; subtitle = "Find 'Speak' and select it."
+            currentFocus = .none
             
-        // --- UNDO ---
-        case .undo_Intro:
-            title = "Mistakes happen"; subtitle = "To go back, we use time."
+        case .clear_Intro:
+            title = "Done"; subtitle = "Let's clear the screen."
             currentFocus = .none
-        case .undo_Action:
-            title = "Long Press"; subtitle = "HOLD Pucker until RED, then Release."
+        case .clear_SelectAction:
+            title = "Press Clear"; subtitle = "Find 'Clear' in the menu."
             currentFocus = .none
             
         case .completed:
-            title = "You did it!"; subtitle = "You are ready."; currentFocus = .none
+            title = "Tutorial Complete"; subtitle = "You are ready."; currentFocus = .none
         }
     }
     
+    // --- UI HELPERS ---
+    
     var shouldShowAction: Bool {
-        if currentFocus == .none { return false }
+        if isSuccessFeedback { return false }
         switch phase {
-        case .intro, .pain_Intro, .typeH_Intro, .undo_Intro, .completed: return false
-        default: return true
+        case .mech_Brows, .mech_Pucker, .mech_Undo: return true
+        default: return currentFocus != .none
         }
     }
     
     var iconForPhase: String {
         switch phase {
-        case .undo_Action: return "arrow.uturn.backward"
+        case .mech_Undo, .delete_Space, .delete_P: return "arrow.uturn.backward"
+        case .speak_SelectAction: return "speaker.wave.2.fill"
+        case .completed: return "star.fill"
         default: return "face.smiling"
         }
     }
     
     var actionIcon: String {
-        if phase == .pain_Switch || phase == .typeH_FocusLeft || phase == .typeH_FocusRight { return "eyebrow" }
-        if phase == .undo_Action { return "clock.arrow.circlepath" }
-        return "mouth"
+        if phase == .mech_Brows { return "eyebrow" }
+        if phase == .mech_Pucker { return "mouth" }
+        if phase == .mech_Undo || phase == .delete_Space { return "clock.arrow.circlepath" }
+        return "cursorarrow.click"
     }
     
     var actionText: String {
-        if phase == .pain_Switch || phase == .typeH_FocusLeft || phase == .typeH_FocusRight { return "Raise Brows" }
-        if phase == .undo_Action { return "Hold & Release" }
-        return "Pucker & Release"
+        if phase == .mech_Brows { return "Raise & Hold" }
+        if phase == .mech_Pucker { return "Pucker (Green)" }
+        if phase == .mech_Undo { return "Long Pucker (Red)" }
+        return "Select Button"
     }
 }

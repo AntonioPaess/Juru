@@ -14,7 +14,7 @@ enum AppCommand: String, CaseIterable {
     case space = "Space"
     case suggestions = "Suggestions"
     case speak = "Speak"
-    case clear = "Clear"
+    case clear = "Clear All"
 }
 
 @MainActor
