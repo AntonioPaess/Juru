@@ -27,7 +27,7 @@ struct TutorialView: View {
         case quick_FocusRoot    // "Olhe Direita (Quick Words)"
         case quick_OpenRoot     // "Abra o menu"
         
-        case quick_FocusGroup   // "Pain está na Direita (Já vai estar lá)"
+        case quick_FocusGroup   // "Pain está na Direita"
         case quick_SelectGroup  // "Selecione o grupo"
         
         case quick_FocusFinal   // "Agora Pain está na Esquerda"
@@ -39,14 +39,26 @@ struct TutorialView: View {
         case type_OpenLetters   // "Abra Letters"
         case type_SelectAM      // "A - M (Esq)"
         case type_SelectHM      // "H - M (Dir)"
-        case type_SelectHI      // "H - J (Esq)"
+        case type_SelectHJ      // "H - J (Esq)"
+        case type_SelectHI      // "H - I (Esq)"
         case type_SelectH       // "Selecione H (Esq)"
         
         // --- 4. PREDICT "HELP" ---
-        case predict_Intro      // "Veja sugestões na direita"
-        case predict_FocusRight // "Olhe Direita"
-        case predict_OpenMenu   // "Abra Menu"
-        case predict_SelectHelp // "Selecione Help"
+        case predict_Intro      // "Veja sugestões acima do Avatar"
+        case predict_FocusRight // "Olhe Direita (Predict & Edit)"
+        case predict_OpenMenu   // "Abra Predict"
+        
+        // Passo 1: Grupo Grande
+        case predict_FocusL1    // "Olhe Esquerda (Help, Hot, Space)"
+        case predict_SelectL1   // "Abra esse grupo"
+        
+        // Passo 2: Grupo Médio
+        case predict_FocusL2    // "Olhe Esquerda (Help, Hot)"
+        case predict_SelectL2   // "Selecione Help"
+        
+        // Passo 3: Palavra Final
+        case predict_FocusFinal // "Olhe Esquerda (Help)"
+        case predict_SelectHelp // "Confirme Help"
         
         // --- 5. CORREÇÃO (Hel) ---
         case mistake_Intro      // "Ops, queríamos Hello!"
@@ -55,8 +67,20 @@ struct TutorialView: View {
         
         // --- 6. PREDICT "HELLO" ---
         case fix_Intro          // "Agora 'Hel' sugere Hello"
-        case fix_FocusRight     // "Olhe Direita"
-        case fix_SelectHello    // "Selecione Hello"
+        case fix_FocusRight     // "Olhe Direita (Predict)"
+        case fix_OpenMenu       // "Abra o menu"
+        
+        // Passo 1: Grupo Grande
+        case fix_FocusL1        // "Olhe Esquerda (Hello está aqui)"
+        case fix_SelectL1       // "Selecione o grupo"
+        
+        // Passo 2: Grupo Médio
+        case fix_FocusL2        // "Olhe Esquerda de novo"
+        case fix_SelectL2       // "Afine a busca"
+        
+        // Passo 3: FINAL NA DIREITA
+        case fix_FocusFinal     // "Olhe DIREITA (Hello)"
+        case fix_SelectHello    // "Confirme Hello"
         
         // --- 7. SPEAK & CLEAR ---
         case speak_Intro        // "Vamos falar"
@@ -74,6 +98,8 @@ struct TutorialView: View {
     @State private var subtitle: String = ""
     @State private var isSuccessFeedback: Bool = false
     @State private var isTransitioning: Bool = false
+    
+    @State private var initialFocusState: Int? = nil
     
     @Environment(\.horizontalSizeClass) var sizeClass
     var isPad: Bool { sizeClass == .regular }
@@ -93,25 +119,21 @@ struct TutorialView: View {
         
         .onAppear { startStory() }
         
-        // --- MONITORES DE ESTADO (Eventos) ---
         .onChange(of: faceManager.currentFocusState) { checkNavigation() }
         .onChange(of: faceManager.puckerState) { checkPucker() }
         .onChange(of: faceManager.isBackingOut) { checkUndo() }
         
-        // --- MONITORES DE CONTEXTO (Dados) ---
         .onChange(of: vocabManager.leftLabel) { checkContext() }
         .onChange(of: vocabManager.rightLabel) { checkContext() }
         .onChange(of: vocabManager.currentMessage) { checkTyping() }
         .onChange(of: vocabManager.isSpeaking) { checkSpeaking() }
         
-        // --- CORREÇÃO DO BUG "JÁ ESTOU LÁ" ---
-        // Assim que a transição de fase termina, verifica se o usuário JÁ está no estado correto
+        .onChange(of: phase) { checkAllConditions() }
         .onChange(of: isTransitioning) { _, newValue in
             if !newValue { checkAllConditions() }
         }
     }
     
-    // Função Mestra: Verifica tudo de uma vez (usada ao iniciar uma fase)
     func checkAllConditions() {
         checkNavigation()
         checkPucker()
@@ -176,18 +198,30 @@ struct TutorialView: View {
         guard !isTransitioning else { return }
         
         // 1. Mecânica
-        if phase == .mech_Brows && faceManager.currentFocusState != 0 {
-            advance(to: .mech_Pucker)
+        if phase == .mech_Brows {
+            if let startState = initialFocusState, faceManager.currentFocusState != startState {
+                advance(to: .mech_Pucker)
+            }
         }
         
-        // Navegação Guiada (Agora aceita se já estiver olhando)
+        // 2. Navegação Guiada
         if phase == .quick_FocusRoot && faceManager.currentFocusState == 2 { advance(to: .quick_OpenRoot) }
         if phase == .quick_FocusGroup && faceManager.currentFocusState == 2 { advance(to: .quick_SelectGroup) }
         if phase == .quick_FocusFinal && faceManager.currentFocusState == 1 { advance(to: .quick_SelectPain) }
         
         if phase == .type_FocusLeft && faceManager.currentFocusState == 1 { advance(to: .type_OpenLetters) }
+        
+        // PREDICT (Help) - Esq, Esq, Esq
         if phase == .predict_FocusRight && faceManager.currentFocusState == 2 { advance(to: .predict_OpenMenu) }
-        if phase == .fix_FocusRight && faceManager.currentFocusState == 2 { advance(to: .fix_SelectHello) }
+        if phase == .predict_FocusL1 && faceManager.currentFocusState == 1 { advance(to: .predict_SelectL1) }
+        if phase == .predict_FocusL2 && faceManager.currentFocusState == 1 { advance(to: .predict_SelectL2) }
+        if phase == .predict_FocusFinal && faceManager.currentFocusState == 1 { advance(to: .predict_SelectHelp) }
+        
+        // PREDICT (Hello) - Dir, Esq, Esq, DIR
+        if phase == .fix_FocusRight && faceManager.currentFocusState == 2 { advance(to: .fix_OpenMenu) }
+        if phase == .fix_FocusL1 && faceManager.currentFocusState == 1 { advance(to: .fix_SelectL1) }
+        if phase == .fix_FocusL2 && faceManager.currentFocusState == 1 { advance(to: .fix_SelectL2) }
+        if phase == .fix_FocusFinal && faceManager.currentFocusState == 2 { advance(to: .fix_SelectHello) }
     }
     
     func checkPucker() {
@@ -225,13 +259,43 @@ struct TutorialView: View {
         case .type_SelectAM:
             if right.contains("H") { advance(to: .type_SelectHM) }
         case .type_SelectHM:
-            if left.contains("H") { advance(to: .type_SelectHI) }
+            if left.contains("J") || left.contains("H") { advance(to: .type_SelectHJ) }
+        case .type_SelectHJ:
+            if left.contains("I") || left.contains("H") { advance(to: .type_SelectHI) }
         case .type_SelectHI:
             if left == "H" { advance(to: .type_SelectH) }
             
-        // Predict Help
+        // Predict Help (Esq, Esq, Esq)
         case .predict_OpenMenu:
-            if left == "Help" || right == "Help" || right.contains("Space") { advance(to: .predict_SelectHelp) }
+            if left.contains("Help") || left.contains("Hot") || left.contains("Space") {
+                advance(to: .predict_FocusL1)
+            }
+        case .predict_SelectL1:
+            if right == "Space" || right.contains("Space") {
+                advance(to: .predict_FocusL2)
+            }
+        case .predict_SelectL2:
+            if right == "Hot" || right.contains("Hot") || left == "Help" {
+                advance(to: .predict_FocusFinal)
+            }
+            
+        // Predict Hello (Dir -> Esq -> Esq -> Dir)
+        case .fix_OpenMenu:
+            if left.contains("Hello") || right.contains("Clear") || right.contains("Speak") {
+                advance(to: .fix_FocusL1)
+            }
+        case .fix_SelectL1:
+            if right.contains("Space") || left.contains("Hello") {
+                advance(to: .fix_FocusL2)
+            }
+            
+        case .fix_SelectL2:
+            // Nível 2: O utilizador acabou de selecionar o grupo da esquerda.
+            // Esperamos que "Hello" apareça na DIREITA.
+            // CORREÇÃO ROBUSTA: Se Hello aparecer na direita OU sumir da esquerda, avançamos.
+            if right.contains("Hello") || (!left.contains("Hello") && !left.isEmpty) {
+                advance(to: .fix_FocusFinal)
+            }
             
         // Speak
         case .speak_OpenMenu:
@@ -256,21 +320,35 @@ struct TutorialView: View {
         guard !isTransitioning else { return }
         let msg = vocabManager.currentMessage
         
+        // Atalho de Sucesso "Help"
+        if msg.contains("Help") {
+            switch phase {
+            case .predict_FocusL1, .predict_SelectL1, .predict_FocusL2, .predict_SelectL2, .predict_FocusFinal, .predict_SelectHelp:
+                advance(to: .mistake_Intro, delay: 0.5)
+                return
+            default: break
+            }
+        }
+        
+        // Atalho de Sucesso "Hello"
+        if msg.contains("Hello") {
+            switch phase {
+            case .fix_FocusRight, .fix_OpenMenu, .fix_FocusL1, .fix_SelectL1, .fix_FocusL2, .fix_SelectL2, .fix_FocusFinal, .fix_SelectHello:
+                advance(to: .speak_Intro, delay: 0.5)
+                return
+            default: break
+            }
+        }
+        
         switch phase {
         case .type_SelectH:
             if msg.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("H") {
                 advance(to: .predict_Intro, delay: 0.5)
             }
-        case .predict_SelectHelp:
-            if msg.contains("Help") {
-                advance(to: .mistake_Intro, delay: 1.0)
-            }
         case .delete_Space:
             if msg == "Help" { advance(to: .delete_P) }
         case .delete_P:
             if msg == "Hel" { advance(to: .fix_Intro) }
-        case .fix_SelectHello:
-            if msg.contains("Hello") { advance(to: .speak_Intro, delay: 1.0) }
         case .clear_SelectAction:
             if msg.isEmpty { advance(to: .completed) }
         default: break
@@ -284,7 +362,6 @@ struct TutorialView: View {
         triggerSuccess()
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             setPhase(next)
-            // Libera a trava após meio segundo e roda a verificação total
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.isTransitioning = false
             }
@@ -294,7 +371,10 @@ struct TutorialView: View {
     func setPhase(_ p: StoryPhase) {
         withAnimation { phase = p; updateTexts() }
         
-        let readTime = 4.0
+        if p == .mech_Brows {
+            initialFocusState = faceManager.currentFocusState
+        }
+        
         switch p {
         case .intro:
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .intro { setPhase(.mech_Brows) } }
@@ -303,7 +383,7 @@ struct TutorialView: View {
         case .type_Intro:
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .type_Intro { setPhase(.type_FocusLeft) } }
         case .predict_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .predict_Intro { setPhase(.predict_FocusRight) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { if phase == .predict_Intro { setPhase(.predict_FocusRight) } }
         case .mistake_Intro:
             DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { if phase == .mistake_Intro { setPhase(.delete_Space) } }
         case .fix_Intro:
@@ -383,6 +463,9 @@ struct TutorialView: View {
         case .type_SelectHM:
             title = "H - M"; subtitle = "Now look RIGHT for H group."
             currentFocus = .rightButton
+        case .type_SelectHJ:
+            title = "H - J"; subtitle = "Look LEFT to narrow down (H-J)."
+            currentFocus = .leftButton
         case .type_SelectHI:
             title = "H - I"; subtitle = "Narrow down on the LEFT."
             currentFocus = .leftButton
@@ -392,17 +475,35 @@ struct TutorialView: View {
             
         // Predict
         case .predict_Intro:
-            title = "Smart Predict"; subtitle = "See suggestions on the RIGHT?"
+            title = "Prediction Check"; subtitle = "Look at the two words floating above your Avatar."
             currentFocus = .none
         case .predict_FocusRight:
-            title = "Suggestions"; subtitle = "Raise Brows to highlight RIGHT."
+            title = "Predict & Edit"; subtitle = "Look RIGHT to select 'Predict'."
             currentFocus = .rightButton
         case .predict_OpenMenu:
-            title = "Open Predictions"; subtitle = "Pucker to see words."
+            title = "Open Predict"; subtitle = "Hold Pucker to open the menu."
             currentFocus = .rightButton
+            
+        case .predict_FocusL1:
+            title = "Suggestions"; subtitle = "Look LEFT for 'Help, Hot, Space'."
+            currentFocus = .leftButton
+        case .predict_SelectL1:
+            title = "Narrow Down"; subtitle = "Select to enter this group."
+            currentFocus = .leftButton
+            
+        case .predict_FocusL2:
+            title = "Almost There"; subtitle = "Look LEFT for 'Help, Hot'."
+            currentFocus = .leftButton
+        case .predict_SelectL2:
+            title = "Select Help"; subtitle = "Choose it on the Left."
+            currentFocus = .leftButton
+            
+        case .predict_FocusFinal:
+            title = "Found It"; subtitle = "Look LEFT for 'Help'."
+            currentFocus = .leftButton
         case .predict_SelectHelp:
-            title = "Select 'Help'"; subtitle = "Choose 'Help' from the list."
-            currentFocus = .none
+            title = "Confirm Help"; subtitle = "Hold Pucker to finish."
+            currentFocus = .leftButton
             
         // Mistake
         case .mistake_Intro:
@@ -415,15 +516,33 @@ struct TutorialView: View {
             title = "Delete 'p'"; subtitle = "Hold Pucker (Red) again to delete 'p'."
             currentFocus = .none
             
-        // Fix
+        // Fix (Hello)
         case .fix_Intro:
             title = "Fixed!"; subtitle = "Now 'Hel' predicts 'Hello'."
             currentFocus = .none
         case .fix_FocusRight:
             title = "Look Right"; subtitle = "Go back to predictions."
             currentFocus = .rightButton
+        case .fix_OpenMenu:
+            title = "Open Menu"; subtitle = "Open the prediction menu."
+            currentFocus = .rightButton
+        case .fix_FocusL1:
+            title = "Hello"; subtitle = "Look LEFT. 'Hello' is in this group."
+            currentFocus = .leftButton
+        case .fix_SelectL1:
+            title = "Select"; subtitle = "Enter the group."
+            currentFocus = .leftButton
+        case .fix_FocusL2:
+            title = "Narrow Down"; subtitle = "Look LEFT again."
+            currentFocus = .leftButton
+        case .fix_SelectL2:
+            title = "Narrow Down"; subtitle = "Hello is in this group."
+            currentFocus = .leftButton
+        case .fix_FocusFinal:
+            title = "Found It"; subtitle = "Look RIGHT for 'Hello'."
+            currentFocus = .rightButton
         case .fix_SelectHello:
-            title = "Select 'Hello'"; subtitle = "Choose it correctly this time."
+            title = "Confirm Hello"; subtitle = "Finish the word."
             currentFocus = .rightButton
             
         // Speak
@@ -464,6 +583,7 @@ struct TutorialView: View {
         case .mech_Undo, .delete_Space, .delete_P: return "arrow.uturn.backward"
         case .speak_SelectAction: return "speaker.wave.2.fill"
         case .completed: return "star.fill"
+        case .predict_Intro: return "eye"
         default: return "face.smiling"
         }
     }
