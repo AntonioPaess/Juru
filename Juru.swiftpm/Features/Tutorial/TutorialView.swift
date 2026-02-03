@@ -48,15 +48,15 @@ struct TutorialView: View {
         case predict_FocusRight // "Olhe Direita (Predict & Edit)"
         case predict_OpenMenu   // "Abra Predict"
         
-        // Passo 1: Grupo Grande
+        // Passo 1
         case predict_FocusL1    // "Olhe Esquerda (Help, Hot, Space)"
         case predict_SelectL1   // "Abra esse grupo"
         
-        // Passo 2: Grupo Médio
+        // Passo 2
         case predict_FocusL2    // "Olhe Esquerda (Help, Hot)"
         case predict_SelectL2   // "Selecione Help"
         
-        // Passo 3: Palavra Final
+        // Passo 3
         case predict_FocusFinal // "Olhe Esquerda (Help)"
         case predict_SelectHelp // "Confirme Help"
         
@@ -76,7 +76,7 @@ struct TutorialView: View {
         
         // Passo 2: Grupo Médio
         case fix_FocusL2        // "Olhe Esquerda de novo"
-        case fix_SelectL2       // "Afine a busca"
+        case fix_SelectL2       // "Selecione o grupo" (AQUI ESTAVA O PROBLEMA)
         
         // Passo 3: FINAL NA DIREITA
         case fix_FocusFinal     // "Olhe DIREITA (Hello)"
@@ -220,7 +220,11 @@ struct TutorialView: View {
         // PREDICT (Hello) - Dir, Esq, Esq, DIR
         if phase == .fix_FocusRight && faceManager.currentFocusState == 2 { advance(to: .fix_OpenMenu) }
         if phase == .fix_FocusL1 && faceManager.currentFocusState == 1 { advance(to: .fix_SelectL1) }
+        
+        // Nível 2: Look Left -> Select Left (ESPERA)
         if phase == .fix_FocusL2 && faceManager.currentFocusState == 1 { advance(to: .fix_SelectL2) }
+        
+        // Nível 3: Look Right -> Select Right (FINAL)
         if phase == .fix_FocusFinal && faceManager.currentFocusState == 2 { advance(to: .fix_SelectHello) }
     }
     
@@ -267,33 +271,35 @@ struct TutorialView: View {
             
         // Predict Help (Esq, Esq, Esq)
         case .predict_OpenMenu:
-            if left.contains("Help") || left.contains("Hot") || left.contains("Space") {
+            // Uso Case Insensitive para segurança
+            if left.localizedCaseInsensitiveContains("Help") || left.localizedCaseInsensitiveContains("Hot") || left.contains("Space") {
                 advance(to: .predict_FocusL1)
             }
         case .predict_SelectL1:
-            if right == "Space" || right.contains("Space") {
+            if right.contains("Space") {
                 advance(to: .predict_FocusL2)
             }
         case .predict_SelectL2:
-            if right == "Hot" || right.contains("Hot") || left == "Help" {
+            // "Help" pode vir minusculo do dicionário
+            if right.localizedCaseInsensitiveContains("Hot") || left.localizedCaseInsensitiveContains("Help") {
                 advance(to: .predict_FocusFinal)
             }
             
         // Predict Hello (Dir -> Esq -> Esq -> Dir)
         case .fix_OpenMenu:
-            if left.contains("Hello") || right.contains("Clear") || right.contains("Speak") {
+            if left.localizedCaseInsensitiveContains("Hello") || right.contains("Clear") || right.contains("Speak") {
                 advance(to: .fix_FocusL1)
             }
         case .fix_SelectL1:
-            if right.contains("Space") || left.contains("Hello") {
+            if right.contains("Space") || left.localizedCaseInsensitiveContains("Hello") {
                 advance(to: .fix_FocusL2)
             }
             
         case .fix_SelectL2:
-            // Nível 2: O utilizador acabou de selecionar o grupo da esquerda.
-            // Esperamos que "Hello" apareça na DIREITA.
-            // CORREÇÃO ROBUSTA: Se Hello aparecer na direita OU sumir da esquerda, avançamos.
-            if right.contains("Hello") || (!left.contains("Hello") && !left.isEmpty) {
+            // CORREÇÃO DO BUG:
+            // Verifica se "hello" (case insensitive) está na direita.
+            // Isso cobre tanto "Hello" quanto "hello".
+            if right.localizedCaseInsensitiveContains("hello") {
                 advance(to: .fix_FocusFinal)
             }
             
@@ -321,7 +327,7 @@ struct TutorialView: View {
         let msg = vocabManager.currentMessage
         
         // Atalho de Sucesso "Help"
-        if msg.contains("Help") {
+        if msg.localizedCaseInsensitiveContains("Help") {
             switch phase {
             case .predict_FocusL1, .predict_SelectL1, .predict_FocusL2, .predict_SelectL2, .predict_FocusFinal, .predict_SelectHelp:
                 advance(to: .mistake_Intro, delay: 0.5)
@@ -331,7 +337,7 @@ struct TutorialView: View {
         }
         
         // Atalho de Sucesso "Hello"
-        if msg.contains("Hello") {
+        if msg.localizedCaseInsensitiveContains("Hello") {
             switch phase {
             case .fix_FocusRight, .fix_OpenMenu, .fix_FocusL1, .fix_SelectL1, .fix_FocusL2, .fix_SelectL2, .fix_FocusFinal, .fix_SelectHello:
                 advance(to: .speak_Intro, delay: 0.5)
@@ -346,7 +352,7 @@ struct TutorialView: View {
                 advance(to: .predict_Intro, delay: 0.5)
             }
         case .delete_Space:
-            if msg == "Help" { advance(to: .delete_P) }
+            if msg.localizedCaseInsensitiveContains("Help") { advance(to: .delete_P) }
         case .delete_P:
             if msg == "Hel" { advance(to: .fix_Intro) }
         case .clear_SelectAction:
@@ -463,6 +469,9 @@ struct TutorialView: View {
         case .type_SelectHM:
             title = "H - M"; subtitle = "Now look RIGHT for H group."
             currentFocus = .rightButton
+        case .type_SelectHM:
+            title = "H - M"; subtitle = "Now look RIGHT for H group."
+            currentFocus = .rightButton
         case .type_SelectHJ:
             title = "H - J"; subtitle = "Look LEFT to narrow down (H-J)."
             currentFocus = .leftButton
@@ -536,10 +545,10 @@ struct TutorialView: View {
             title = "Narrow Down"; subtitle = "Look LEFT again."
             currentFocus = .leftButton
         case .fix_SelectL2:
-            title = "Narrow Down"; subtitle = "Hello is in this group."
+            title = "Select Group"; subtitle = "Hello is in this group."
             currentFocus = .leftButton
         case .fix_FocusFinal:
-            title = "Found It"; subtitle = "Look RIGHT for 'Hello'."
+            title = "Found It"; subtitle = "Look RIGHT for 'Hello'." // CORRETO: Foco na direita
             currentFocus = .rightButton
         case .fix_SelectHello:
             title = "Confirm Hello"; subtitle = "Finish the word."
