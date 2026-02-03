@@ -39,6 +39,7 @@ struct TutorialView: View {
         case type_OpenLetters   // "Abra Letters"
         case type_SelectAM      // "A - M (Esq)"
         case type_SelectHM      // "H - M (Dir)"
+        case type_SelectHM_Dup  // (Mantido para compatibilidade de enum)
         case type_SelectHJ      // "H - J (Esq)"
         case type_SelectHI      // "H - I (Esq)"
         case type_SelectH       // "Selecione H (Esq)"
@@ -76,7 +77,7 @@ struct TutorialView: View {
         
         // Passo 2: Grupo Médio
         case fix_FocusL2        // "Olhe Esquerda de novo"
-        case fix_SelectL2       // "Selecione o grupo" (AQUI ESTAVA O PROBLEMA)
+        case fix_SelectL2       // "Selecione o grupo"
         
         // Passo 3: FINAL NA DIREITA
         case fix_FocusFinal     // "Olhe DIREITA (Hello)"
@@ -85,10 +86,10 @@ struct TutorialView: View {
         // --- 7. SPEAK & CLEAR ---
         case speak_Intro        // "Vamos falar"
         case speak_OpenMenu     // "Abra menu Direita"
-        case speak_SelectAction // "Selecione Speak"
+        case speak_SelectAction // "Selecione Speak" (DINÂMICO)
         
         case clear_Intro        // "Limpar tela"
-        case clear_SelectAction // "Selecione Clear"
+        case clear_SelectAction // "Selecione Clear" (DINÂMICO)
         
         case completed
     }
@@ -211,20 +212,16 @@ struct TutorialView: View {
         
         if phase == .type_FocusLeft && faceManager.currentFocusState == 1 { advance(to: .type_OpenLetters) }
         
-        // PREDICT (Help) - Esq, Esq, Esq
+        // PREDICT (Help)
         if phase == .predict_FocusRight && faceManager.currentFocusState == 2 { advance(to: .predict_OpenMenu) }
         if phase == .predict_FocusL1 && faceManager.currentFocusState == 1 { advance(to: .predict_SelectL1) }
         if phase == .predict_FocusL2 && faceManager.currentFocusState == 1 { advance(to: .predict_SelectL2) }
         if phase == .predict_FocusFinal && faceManager.currentFocusState == 1 { advance(to: .predict_SelectHelp) }
         
-        // PREDICT (Hello) - Dir, Esq, Esq, DIR
+        // PREDICT (Hello)
         if phase == .fix_FocusRight && faceManager.currentFocusState == 2 { advance(to: .fix_OpenMenu) }
         if phase == .fix_FocusL1 && faceManager.currentFocusState == 1 { advance(to: .fix_SelectL1) }
-        
-        // Nível 2: Look Left -> Select Left (ESPERA)
         if phase == .fix_FocusL2 && faceManager.currentFocusState == 1 { advance(to: .fix_SelectL2) }
-        
-        // Nível 3: Look Right -> Select Right (FINAL)
         if phase == .fix_FocusFinal && faceManager.currentFocusState == 2 { advance(to: .fix_SelectHello) }
     }
     
@@ -250,6 +247,11 @@ struct TutorialView: View {
         let left = vocabManager.leftLabel
         let right = vocabManager.rightLabel
         
+        // ATUALIZAÇÃO DE FOCO DINÂMICO
+        // Importante: Se os labels mudarem (navegação na árvore), o foco precisa atualizar
+        // para permitir que o usuário continue clicando até achar "Speak" ou "Clear".
+        updateDynamicFocus(left: left, right: right)
+        
         switch phase {
         // Quick Words
         case .quick_OpenRoot:
@@ -269,23 +271,19 @@ struct TutorialView: View {
         case .type_SelectHI:
             if left == "H" { advance(to: .type_SelectH) }
             
-        // Predict Help (Esq, Esq, Esq)
+        // Predict Help
         case .predict_OpenMenu:
-            // Uso Case Insensitive para segurança
             if left.localizedCaseInsensitiveContains("Help") || left.localizedCaseInsensitiveContains("Hot") || left.contains("Space") {
                 advance(to: .predict_FocusL1)
             }
         case .predict_SelectL1:
-            if right.contains("Space") {
-                advance(to: .predict_FocusL2)
-            }
+            if right.contains("Space") { advance(to: .predict_FocusL2) }
         case .predict_SelectL2:
-            // "Help" pode vir minusculo do dicionário
             if right.localizedCaseInsensitiveContains("Hot") || left.localizedCaseInsensitiveContains("Help") {
                 advance(to: .predict_FocusFinal)
             }
             
-        // Predict Hello (Dir -> Esq -> Esq -> Dir)
+        // Predict Hello
         case .fix_OpenMenu:
             if left.localizedCaseInsensitiveContains("Hello") || right.contains("Clear") || right.contains("Speak") {
                 advance(to: .fix_FocusL1)
@@ -296,9 +294,6 @@ struct TutorialView: View {
             }
             
         case .fix_SelectL2:
-            // CORREÇÃO DO BUG:
-            // Verifica se "hello" (case insensitive) está na direita.
-            // Isso cobre tanto "Hello" quanto "hello".
             if right.localizedCaseInsensitiveContains("hello") {
                 advance(to: .fix_FocusFinal)
             }
@@ -308,6 +303,24 @@ struct TutorialView: View {
             if right.contains("Speak") { advance(to: .speak_SelectAction) }
             
         default: break
+        }
+    }
+    
+    // NOVO: Função auxiliar para atualizar foco em tempo real
+    func updateDynamicFocus(left: String, right: String) {
+        switch phase {
+        case .speak_SelectAction:
+            if right.contains("Speak") { currentFocus = .rightButton }
+            else if left.contains("Speak") { currentFocus = .leftButton }
+            else { currentFocus = .rightButton } // Assume direita se não visível (grupo pai)
+            
+        case .clear_SelectAction:
+            if right.contains("Clear") { currentFocus = .rightButton }
+            else if left.contains("Clear") { currentFocus = .leftButton }
+            else { currentFocus = .rightButton } // Assume direita se não visível
+            
+        default:
+            break
         }
     }
     
@@ -326,7 +339,6 @@ struct TutorialView: View {
         guard !isTransitioning else { return }
         let msg = vocabManager.currentMessage
         
-        // Atalho de Sucesso "Help"
         if msg.localizedCaseInsensitiveContains("Help") {
             switch phase {
             case .predict_FocusL1, .predict_SelectL1, .predict_FocusL2, .predict_SelectL2, .predict_FocusFinal, .predict_SelectHelp:
@@ -336,7 +348,6 @@ struct TutorialView: View {
             }
         }
         
-        // Atalho de Sucesso "Hello"
         if msg.localizedCaseInsensitiveContains("Hello") {
             switch phase {
             case .fix_FocusRight, .fix_OpenMenu, .fix_FocusL1, .fix_SelectL1, .fix_FocusL2, .fix_SelectL2, .fix_FocusFinal, .fix_SelectHello:
@@ -380,6 +391,9 @@ struct TutorialView: View {
         if p == .mech_Brows {
             initialFocusState = faceManager.currentFocusState
         }
+        
+        // Chamada inicial para garantir foco correto ao entrar na fase
+        updateDynamicFocus(left: vocabManager.leftLabel, right: vocabManager.rightLabel)
         
         switch p {
         case .intro:
@@ -469,7 +483,7 @@ struct TutorialView: View {
         case .type_SelectHM:
             title = "H - M"; subtitle = "Now look RIGHT for H group."
             currentFocus = .rightButton
-        case .type_SelectHM:
+        case .type_SelectHM_Dup:
             title = "H - M"; subtitle = "Now look RIGHT for H group."
             currentFocus = .rightButton
         case .type_SelectHJ:
@@ -548,7 +562,7 @@ struct TutorialView: View {
             title = "Select Group"; subtitle = "Hello is in this group."
             currentFocus = .leftButton
         case .fix_FocusFinal:
-            title = "Found It"; subtitle = "Look RIGHT for 'Hello'." // CORRETO: Foco na direita
+            title = "Found It"; subtitle = "Look RIGHT for 'Hello'."
             currentFocus = .rightButton
         case .fix_SelectHello:
             title = "Confirm Hello"; subtitle = "Finish the word."
@@ -563,22 +577,21 @@ struct TutorialView: View {
             currentFocus = .rightButton
         case .speak_SelectAction:
             title = "Press Speak"; subtitle = "Find 'Speak' and select it."
-            currentFocus = .none
+            // Foco definido dinamicamente em updateDynamicFocus()
             
         case .clear_Intro:
             title = "Done"; subtitle = "Let's clear the screen."
             currentFocus = .none
         case .clear_SelectAction:
             title = "Press Clear"; subtitle = "Find 'Clear' in the menu."
-            currentFocus = .none
+             // Foco definido dinamicamente em updateDynamicFocus()
             
         case .completed:
             title = "Tutorial Complete"; subtitle = "You are ready."; currentFocus = .none
         }
     }
     
-    // --- UI HELPERS ---
-    
+    // UI Helpers (mantidos iguais)...
     var shouldShowAction: Bool {
         if isSuccessFeedback { return false }
         switch phase {

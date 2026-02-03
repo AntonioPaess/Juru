@@ -41,7 +41,8 @@ struct RootView: View {
                         vocabManager: vocab,
                         faceManager: faceManager,
                         isPaused: false,
-                        tutorialFocus: tutorialFocus // Recebe foco do overlay
+                        tutorialFocus: tutorialFocus, // Recebe foco do overlay
+                        isTutorialActive: currentState == .tutorial // <--- CORREÇÃO AQUI
                     )
                     // Transição suave apenas na primeira aparição
                     .transition(.opacity)
@@ -67,56 +68,21 @@ struct RootView: View {
                     }
                     
                     if currentState == .tutorial {
-                        // AGORA É SÓ O OVERLAY (Sem duplicar o App)
                         TutorialView(
                             vocabManager: vocab,
                             faceManager: faceManager,
                             onTutorialComplete: {
-                                // Ao completar, apenas removemos o overlay.
-                                // O MainApp já está embaixo. Zero flicker.
                                 withAnimation(.easeOut(duration: 1.0)) {
                                     currentState = .mainApp
                                     tutorialFocus = .none
                                 }
                             },
-                            currentFocus: $tutorialFocus // Passa o controle para o tutorial
+                            currentFocus: $tutorialFocus
                         )
                         .transition(.opacity)
                     }
                 }
             }
-            
-//            // CAMADA 3: DEBUGGER
-//            #if targetEnvironment(simulator)
-//            VStack {
-//                Spacer()
-//                if isDebugExpanded {
-//                    DebugControls(
-//                        faceManager: faceManager,
-//                        onSkipAll: {
-//                            faceManager.calibration = UserCalibration()
-//                            withAnimation { currentState = .mainApp }
-//                        },
-//                        onStartTutorial: {
-//                            faceManager.calibration = UserCalibration()
-//                            withAnimation { currentState = .tutorial }
-//                        },
-//                        onMinimize: { withAnimation(.spring) { isDebugExpanded = false } }
-//                    )
-//                    .padding(.bottom, 20)
-//                    .transition(.move(edge: .bottom).combined(with: .opacity))
-//                } else {
-//                    Button { withAnimation(.spring) { isDebugExpanded = true } } label: {
-//                        Image(systemName: "ladybug.fill")
-//                            .font(.title2).foregroundStyle(.white).frame(width: 50, height: 50)
-//                            .background(Color.juruTeal).clipShape(Circle()).shadow(radius: 10)
-//                    }
-//                    .padding(.bottom, 20)
-//                    .transition(.scale)
-//                }
-//            }
-//            .zIndex(999)
-//            #endif
         }
         .task { await setupApp() }
     }

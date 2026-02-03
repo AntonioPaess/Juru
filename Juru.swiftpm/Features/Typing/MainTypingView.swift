@@ -21,6 +21,7 @@ struct MainTypingView: View {
     var isPaused: Bool
     
     var tutorialFocus: TutorialFocus = .none
+    var isTutorialActive: Bool // <--- NOVA VARIÁVEL
     
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.horizontalSizeClass) var sizeClass
@@ -144,14 +145,30 @@ struct MainTypingView: View {
         }
         .onReceive(timer) { _ in
             if !isPaused {
-                // TRAVA DE SEGURANÇA (FOOLPROOF)
-                var allowAction = true
+                var allowAction = false
                 
-                if tutorialFocus == .leftButton && faceManager.currentFocusState == 2 {
-                    allowAction = false // Pediu Esquerda, olhou Direita -> BLOQUEIA
+                // --- LÓGICA CORRIGIDA ---
+                
+                if !isTutorialActive {
+                    // MODO NORMAL: Permite tudo (comportamento padrão)
+                    allowAction = true
+                } else {
+                    // MODO TUTORIAL: Aplica a lógica estrita de bloqueio
+                    switch tutorialFocus {
+                    case .leftButton:
+                        if faceManager.currentFocusState == 1 { allowAction = true }
+                        
+                    case .rightButton:
+                        if faceManager.currentFocusState == 2 { allowAction = true }
+                        
+                    case .none, .suggestions, .speak:
+                        allowAction = false
+                    }
                 }
-                else if tutorialFocus == .rightButton && faceManager.currentFocusState == 1 {
-                    allowAction = false // Pediu Direita, olhou Esquerda -> BLOQUEIA
+                
+                // UNDO SEMPRE PERMITIDO (Gesto global)
+                if faceManager.isBackingOut {
+                    allowAction = true
                 }
                 
                 if allowAction {
@@ -173,12 +190,12 @@ struct MainTypingView: View {
     }
     
     func shouldDim(_ element: TutorialFocus) -> Bool {
-        if tutorialFocus == .none { return false }
+        // Se não estiver no tutorial, não escurece nada
+        if !isTutorialActive || tutorialFocus == .none { return false }
         return tutorialFocus != element
     }
 }
-
-// (Os structs auxiliares: ProgressRing, AmbientBackground, etc. permanecem os mesmos)
+// Structs auxiliares permanecem iguais...
 struct ProgressRing: View {
     var state: PuckerState
     var progress: Double
