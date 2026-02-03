@@ -17,6 +17,10 @@ struct CalibrationView: View {
     @State private var progress: CGFloat = 0.0
     @State private var isUserTurn: Bool = false
     
+    // --- ESTADO DE PREPARAÇÃO (Countdown) ---
+    @State private var isPreparing: Bool = true
+    @State private var startCountdown: Double = 3.9 // Começa quase em 4 para mostrar o 3 cheio
+    
     // Feedback Visual de Sucesso
     @State private var showSuccessFeedback: Bool = false
     
@@ -123,6 +127,28 @@ struct CalibrationView: View {
                         )
                     }
                 }
+                
+                // --- OVERLAY DE CONTAGEM REGRESSIVA ---
+                if isPreparing {
+                    Color.black.opacity(0.7).ignoresSafeArea()
+                        .transition(.opacity)
+                    
+                    VStack(spacing: 20 * scale) {
+                        Text("Get Ready")
+                            .font(.juruFont(.title, weight: .bold))
+                            .foregroundStyle(.white)
+                            .opacity(0.9)
+                        
+                        Text("\(Int(startCountdown))")
+                            .font(.system(size: 100 * scale, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Color.juruTeal)
+                            .contentTransition(.numericText())
+                            .shadow(color: .juruTeal.opacity(0.5), radius: 20)
+                            .id(Int(startCountdown)) // Força animação na troca de número
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                    .zIndex(100)
+                }
             }
         }
         // Sensores
@@ -130,10 +156,25 @@ struct CalibrationView: View {
         .onChange(of: faceManager.rawValues[.pucker]) { _, val in handleInput(Float(val ?? 0), gesture: .pucker) }
         // Loop de Animação e Coleta
         .onReceive(timer) { _ in
-            if currentStep == .neutral {
-                collectNeutralData()
-            } else if !isUserTurn && (currentStep == .brows || currentStep == .pucker) {
-                updateDemoLoop()
+            if isPreparing {
+                // Lógica de Contagem Regressiva
+                if startCountdown > 1.0 {
+                    withAnimation(.linear(duration: 0.05)) {
+                        startCountdown -= 0.05
+                    }
+                } else {
+                    // Fim da contagem
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        isPreparing = false
+                    }
+                }
+            } else {
+                // Lógica Normal de Calibração (Só roda após a contagem)
+                if currentStep == .neutral {
+                    collectNeutralData()
+                } else if !isUserTurn && (currentStep == .brows || currentStep == .pucker) {
+                    updateDemoLoop()
+                }
             }
         }
     }
@@ -154,7 +195,7 @@ struct CalibrationView: View {
                     .transition(.blurReplace)
                     .id("T-\(step)")
                 
-                // Texto Secundário AUMENTADO como pedido
+                // Texto Secundário
                 Text(description)
                     .font(.system(size: 26 * scale, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.juruText.opacity(0.95))
