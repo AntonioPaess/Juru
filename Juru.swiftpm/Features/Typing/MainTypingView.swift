@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+/// Defines which UI element should be highlighted during the tutorial.
 enum TutorialFocus: Equatable {
     case none
     case leftButton
@@ -15,26 +16,40 @@ enum TutorialFocus: Equatable {
     case speak
 }
 
+/// The main typing interface where users compose messages using facial gestures.
+///
+/// This view displays:
+/// - A text display card showing the current message being composed
+/// - Word suggestions based on the current input
+/// - An avatar with gesture intensity gauges
+/// - Left and right action cards for menu navigation
+///
+/// ## Architecture
+/// Uses `TimelineView` for the update loop to prevent memory leaks from traditional timers.
+/// The 50ms tick rate (20Hz) matches the ARKit face tracking update frequency.
+///
+/// ## Tutorial Integration
+/// When `isTutorialActive` is true, only specific actions are allowed based on
+/// `tutorialFocus`, guiding users through the learning process step by step.
 struct MainTypingView: View {
     @Bindable var vocabManager: VocabularyManager
     var faceManager: FaceTrackingManager
     var isPaused: Bool
-    
+
     var tutorialFocus: TutorialFocus = .none
-    var isTutorialActive: Bool // <--- NOVA VARIÁVEL
-    
+    var isTutorialActive: Bool
+
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.horizontalSizeClass) var sizeClass
-    
-    private let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
-    
+
     var isPad: Bool { sizeClass == .regular }
-    
+
     var body: some View {
-        ZStack {
-            AmbientBackground()
-            
-            VStack(spacing: 0) {
+        TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
+            ZStack {
+                AmbientBackground()
+
+                VStack(spacing: 0) {
                 // HEADER
                 HStack {
                     Image("Juru-White")
@@ -142,43 +157,50 @@ struct MainTypingView: View {
                     .opacity(0.6)
                     .padding(.bottom, 20)
             }
-        }
-        .onReceive(timer) { _ in
-            if !isPaused {
-                var allowAction = false
-                
-                // --- LÓGICA CORRIGIDA ---
-                
-                if !isTutorialActive {
-                    // MODO NORMAL: Permite tudo (comportamento padrão)
-                    allowAction = true
-                } else {
-                    // MODO TUTORIAL: Aplica a lógica estrita de bloqueio
-                    switch tutorialFocus {
-                    case .leftButton:
-                        if faceManager.currentFocusState == 1 { allowAction = true }
-                        
-                    case .rightButton:
-                        if faceManager.currentFocusState == 2 { allowAction = true }
-                        
-                    case .none, .suggestions, .speak:
-                        allowAction = false
-                    }
-                }
-                
-                // UNDO SEMPRE PERMITIDO (Gesto global)
-                if faceManager.isBackingOut {
-                    allowAction = true
-                }
-                
-                if allowAction {
-                    vocabManager.update()
-                }
+            }
+            .onChange(of: timeline.date) { _, _ in
+                handleTimelineTick()
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: tutorialFocus)
     }
-    
+
+    /// Processes each timeline tick and updates the vocabulary manager if allowed.
+    ///
+    /// During tutorial mode, actions are restricted based on `tutorialFocus`:
+    /// - `.leftButton`: Only allows actions when focus is on left menu
+    /// - `.rightButton`: Only allows actions when focus is on right menu
+    /// - Other states: Blocks all actions except undo (backing out)
+    ///
+    /// The undo gesture (long pucker hold) is always permitted regardless of tutorial state.
+    private func handleTimelineTick() {
+        guard !isPaused else { return }
+
+        var allowAction = false
+
+        if !isTutorialActive {
+            allowAction = true
+        } else {
+            switch tutorialFocus {
+            case .leftButton:
+                if faceManager.currentFocusState == 1 { allowAction = true }
+            case .rightButton:
+                if faceManager.currentFocusState == 2 { allowAction = true }
+            case .none, .suggestions, .speak:
+                allowAction = false
+            }
+        }
+
+        if faceManager.isBackingOut {
+            allowAction = true
+        }
+
+        if allowAction {
+            vocabManager.update()
+        }
+    }
+
+    /// Returns contextual instruction text based on the current pucker state
     var footerInstruction: String {
         switch faceManager.puckerState {
         case .idle: return "Hold Pucker to Select • Long Hold to Undo"
