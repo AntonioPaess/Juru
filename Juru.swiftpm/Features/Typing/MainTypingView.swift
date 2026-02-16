@@ -42,7 +42,15 @@ struct MainTypingView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.horizontalSizeClass) var sizeClass
 
+    /// Tracks whether ARKit is currently detecting a face. Shows overlay when false.
+    @State private var isFaceDetected: Bool = true
+
+    /// Timestamp of last face tracking check to throttle verification to 200ms intervals.
+    @State private var lastFaceCheckTime: Date = .distantPast
+
     var isPad: Bool { sizeClass == .regular }
+
+    private let faceCheckInterval: TimeInterval = 0.2
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
@@ -157,6 +165,8 @@ struct MainTypingView: View {
                     .opacity(0.6)
                     .padding(.bottom, 20)
             }
+
+                FaceNotDetectedOverlay(isVisible: !isFaceDetected, scale: isPad ? 1.2 : 1.0)
             }
             .onChange(of: timeline.date) { _, _ in
                 handleTimelineTick()
@@ -175,6 +185,8 @@ struct MainTypingView: View {
     /// The undo gesture (long pucker hold) is always permitted regardless of tutorial state.
     private func handleTimelineTick() {
         guard !isPaused else { return }
+
+        checkFaceTracking()
 
         var allowAction = false
 
@@ -197,6 +209,21 @@ struct MainTypingView: View {
 
         if allowAction {
             vocabManager.update()
+        }
+    }
+
+    /// Checks if ARKit face tracking has been lost by comparing timestamps.
+    /// Shows FaceNotDetectedOverlay if no face anchor updates for > 0.5 seconds.
+    private func checkFaceTracking() {
+        let now = Date()
+        guard now.timeIntervalSince(lastFaceCheckTime) >= faceCheckInterval else { return }
+        lastFaceCheckTime = now
+
+        let timeSinceFaceDetected = now.timeIntervalSince(faceManager.lastFaceDetectedTime)
+        let faceVisible = timeSinceFaceDetected < 0.5
+
+        if faceVisible != isFaceDetected {
+            withAnimation { isFaceDetected = faceVisible }
         }
     }
 

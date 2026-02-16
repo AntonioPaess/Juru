@@ -91,7 +91,15 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     weak var currentSession: ARSession?
     private let kCalibrationKey = "UserCalibration"
     private var lastUpdateTime: TimeInterval = 0
-    
+
+    /// Timestamp of the last successful face anchor update from ARKit.
+    /// Views check this to detect when face tracking is lost (no updates for > 0.5s).
+    var lastFaceDetectedTime: Date = .distantPast
+
+    /// Indicates whether a face is currently being tracked.
+    /// Updated to true on each face anchor callback.
+    var isFaceCurrentlyTracked: Bool = false
+
     private var puckerStartTime: Date? = nil
     private var isBrowRelaxed = true
     
@@ -169,10 +177,13 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
         guard let anchor = anchors.first as? ARFaceAnchor else { return }
         let currentTime = ProcessInfo.processInfo.systemUptime
-        
+
         Task { @MainActor in
             guard currentTime - self.lastUpdateTime > GestureConfig.throttleInterval else { return }
             self.lastUpdateTime = currentTime
+
+            self.lastFaceDetectedTime = Date()
+            self.isFaceCurrentlyTracked = true
             
             // 1. Captura BRUTA
             let rawBrow = anchor.blendShapes[.browInnerUp]?.doubleValue ?? 0.0

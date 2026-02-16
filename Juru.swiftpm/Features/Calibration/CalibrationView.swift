@@ -45,6 +45,12 @@ struct CalibrationView: View {
     @State private var lastTickTime: Date = .distantPast
     @State private var lastNeutralCollectTime: Date = .distantPast
 
+    /// Tracks whether ARKit is currently detecting a face. Shows overlay when false.
+    @State private var isFaceDetected: Bool = true
+
+    /// Prevents concurrent executions of triggerSuccessAndNext to avoid state corruption.
+    @State private var isStepTransitioning: Bool = false
+
     /// The minimum interval between timeline ticks (50ms = 20Hz)
     private let tickInterval: TimeInterval = 0.05
 
@@ -146,6 +152,9 @@ struct CalibrationView: View {
                         .transition(.scale.combined(with: .opacity))
                         .zIndex(100)
                     }
+
+                    FaceNotDetectedOverlay(isVisible: !isFaceDetected && !isPreparing, scale: scale)
+                        .zIndex(101)
                 }
             }
             .onChange(of: timeline.date) { _, _ in
@@ -179,11 +188,29 @@ struct CalibrationView: View {
                 }
             }
         } else {
+            checkFaceTracking(now: now)
+
             if currentStep == .neutral {
                 collectNeutralData(now: now)
             } else if !isUserTurn && (currentStep == .brows || currentStep == .pucker) {
                 updateDemoLoop(elapsed: tickInterval)
             }
+        }
+    }
+
+    /// Checks if ARKit face tracking has been lost by comparing timestamps.
+    /// Resets isFaceDetected to true when step is .done (calibration complete).
+    private func checkFaceTracking(now: Date) {
+        guard currentStep != .done else {
+            if !isFaceDetected { isFaceDetected = true }
+            return
+        }
+
+        let timeSinceFaceDetected = now.timeIntervalSince(faceManager.lastFaceDetectedTime)
+        let faceVisible = timeSinceFaceDetected < 0.5
+
+        if faceVisible != isFaceDetected {
+            withAnimation { isFaceDetected = faceVisible }
         }
     }
 
@@ -417,9 +444,14 @@ struct CalibrationView: View {
         guard timeSinceLastCollect >= tickInterval else { return }
         lastNeutralCollectTime = now
 
+        guard isFaceDetected else { return }
+
+        let browVal = faceManager.rawValues[.browUp] ?? 0
+        let puckerVal = faceManager.rawValues[.pucker] ?? 0
+
         if neutralCount < 20 {
-            neutralBrowSum += faceManager.rawValues[.browUp] ?? 0
-            neutralPuckerSum += faceManager.rawValues[.pucker] ?? 0
+            neutralBrowSum += browVal
+            neutralPuckerSum += puckerVal
             neutralCount += 1
             withAnimation { progress = CGFloat(neutralCount) / 20.0 }
         } else {
@@ -438,6 +470,9 @@ struct CalibrationView: View {
     ///
     /// - Parameter nextStep: The step to transition to after the success animation
     func triggerSuccessAndNext(to nextStep: Step) {
+        guard !isStepTransitioning else { return }
+        isStepTransitioning = true
+
         let gen = UINotificationFeedbackGenerator()
         gen.notificationOccurred(.success)
 
@@ -456,7 +491,10 @@ struct CalibrationView: View {
             if nextStep != .done {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                     withAnimation { isUserTurn = true }
+                    isStepTransitioning = false
                 }
+            } else {
+                isStepTransitioning = false
             }
         }
     }

@@ -99,13 +99,69 @@ struct TutorialView: View {
     @State private var subtitle: String = ""
     @State private var isSuccessFeedback: Bool = false
     @State private var isTransitioning: Bool = false
-    
+
+    /// Prevents reentrant calls to checkAllConditions() that could cause infinite loops
+    /// when onChange triggers modify state that triggers more onChange events.
+    @State private var isProcessingCheck: Bool = false
+
     @State private var initialFocusState: Int? = nil
-    
+
+    /// Tracks whether ARKit is currently detecting a face.
+    @State private var isFaceDetected: Bool = true
+
+    /// Timestamp of last face tracking check to throttle verification to 200ms intervals.
+    @State private var lastFaceCheckTime: Date = .distantPast
+
     @Environment(\.horizontalSizeClass) var sizeClass
     var isPad: Bool { sizeClass == .regular }
-    
+
+    private let faceCheckInterval: TimeInterval = 0.2
+
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.2)) { timeline in
+            ZStack {
+                tutorialContent
+
+                FaceNotDetectedOverlay(isVisible: !isFaceDetected && phase != .completed, scale: isPad ? 1.2 : 1.0)
+            }
+            .onChange(of: timeline.date) { _, _ in
+                checkFaceTracking()
+            }
+        }
+        .onAppear { startStory() }
+
+        .onChange(of: faceManager.currentFocusState) { checkNavigation() }
+        .onChange(of: faceManager.puckerState) { checkPucker() }
+        .onChange(of: faceManager.isBackingOut) { checkUndo() }
+
+        .onChange(of: vocabManager.leftLabel) { checkContext() }
+        .onChange(of: vocabManager.rightLabel) { checkContext() }
+        .onChange(of: vocabManager.currentMessage) { checkTyping() }
+        .onChange(of: vocabManager.isSpeaking) { checkSpeaking() }
+
+        .onChange(of: phase) { checkAllConditions() }
+        .onChange(of: isTransitioning) { _, newValue in
+            if !newValue { checkAllConditions() }
+        }
+    }
+
+    /// Checks if ARKit face tracking has been lost by comparing timestamps.
+    /// Shows FaceNotDetectedOverlay if no face anchor updates for > 0.5 seconds.
+    private func checkFaceTracking() {
+        let now = Date()
+        guard now.timeIntervalSince(lastFaceCheckTime) >= faceCheckInterval else { return }
+        lastFaceCheckTime = now
+
+        let timeSinceFaceDetected = now.timeIntervalSince(faceManager.lastFaceDetectedTime)
+        let faceVisible = timeSinceFaceDetected < 0.5
+
+        if faceVisible != isFaceDetected {
+            withAnimation { isFaceDetected = faceVisible }
+        }
+    }
+
+    @ViewBuilder
+    var tutorialContent: some View {
         VStack {
             if isPad {
                 instructionCard.padding(.top, 40)
@@ -117,25 +173,15 @@ struct TutorialView: View {
         }
         .padding(.horizontal, isPad ? 100 : 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        
-        .onAppear { startStory() }
-        
-        .onChange(of: faceManager.currentFocusState) { checkNavigation() }
-        .onChange(of: faceManager.puckerState) { checkPucker() }
-        .onChange(of: faceManager.isBackingOut) { checkUndo() }
-        
-        .onChange(of: vocabManager.leftLabel) { checkContext() }
-        .onChange(of: vocabManager.rightLabel) { checkContext() }
-        .onChange(of: vocabManager.currentMessage) { checkTyping() }
-        .onChange(of: vocabManager.isSpeaking) { checkSpeaking() }
-        
-        .onChange(of: phase) { checkAllConditions() }
-        .onChange(of: isTransitioning) { _, newValue in
-            if !newValue { checkAllConditions() }
-        }
     }
     
+    /// Performs all tutorial state checks in sequence with reentrancy protection.
+    /// Uses isProcessingCheck flag to prevent infinite loops from onChange triggers.
     func checkAllConditions() {
+        guard !isProcessingCheck && !isTransitioning else { return }
+        isProcessingCheck = true
+        defer { isProcessingCheck = false }
+
         checkNavigation()
         checkPucker()
         checkUndo()
@@ -196,9 +242,6 @@ struct TutorialView: View {
     // MARK: - Lógica de Verificação
     
     func checkNavigation() {
-        guard !isTransitioning else { return }
-        
-        // 1. Mecânica
         if phase == .mech_Brows {
             if let startState = initialFocusState, faceManager.currentFocusState != startState {
                 advance(to: .mech_Pucker)
@@ -226,14 +269,12 @@ struct TutorialView: View {
     }
     
     func checkPucker() {
-        guard !isTransitioning else { return }
         if phase == .mech_Pucker && faceManager.puckerState == .readyToSelect {
             advance(to: .mech_Undo)
         }
     }
     
     func checkUndo() {
-        guard !isTransitioning else { return }
         if phase == .mech_Undo && faceManager.isBackingOut {
             advance(to: .quick_Intro)
         }
@@ -243,7 +284,6 @@ struct TutorialView: View {
     }
     
     func checkContext() {
-        guard !isTransitioning else { return }
         let left = vocabManager.leftLabel
         let right = vocabManager.rightLabel
         
@@ -325,7 +365,6 @@ struct TutorialView: View {
     }
     
     func checkSpeaking() {
-        guard !isTransitioning else { return }
         if vocabManager.isSpeaking {
             if phase == .quick_SelectPain {
                 advance(to: .type_Intro, delay: 2.0)
@@ -336,7 +375,6 @@ struct TutorialView: View {
     }
     
     func checkTyping() {
-        guard !isTransitioning else { return }
         let msg = vocabManager.currentMessage
         
         if msg.localizedCaseInsensitiveContains("Help") {
