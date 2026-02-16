@@ -7,62 +7,83 @@
 
 import SwiftUI
 
+/// An animated avatar that mirrors the user's facial expressions.
+///
+/// The avatar displays:
+/// - Animated eyebrows that raise based on `browUp` value
+/// - A mouth that transitions between smile and pucker states
+/// - Periodic natural blinking for lifelike appearance
+///
+/// ## Usage Modes
+/// - **Live tracking**: Pass `faceManager` and leave `manualBrowUp`/`manualPucker` nil
+/// - **Demo mode**: Set `manualBrowUp`/`manualPucker` to override face tracking values
+///
+/// ## Blink Animation
+/// Uses `TimelineView` with controlled intervals to trigger random blinks every ~3.5 seconds.
+/// The `lastBlinkTime` state prevents rapid consecutive blinks even if the view re-renders frequently.
 struct JuruAvatarView: View {
     var faceManager: FaceTrackingManager
-    
+
     var manualBrowUp: Double? = nil
     var manualPucker: Double? = nil
-    
+
     var size: CGFloat = 200
     var color: Color = .juruTeal
-    
+
     @State private var isBlinking = false
-    @State private var blinkTimer = Timer.publish(every: 3.5, on: .main, in: .common).autoconnect()
-    
+    @State private var lastBlinkTime: Date = .distantPast
+
     var effectiveBrowUp: Double { manualBrowUp ?? faceManager.browUp }
     var effectivePucker: Double { manualPucker ?? faceManager.mouthPucker }
-    
+
+    /// Minimum interval between blink animations (3.5 seconds)
+    private let blinkInterval: TimeInterval = 3.5
+
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color.juruCardBackground, Color.juruCardBackground.opacity(0.8)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: size, height: size)
-                .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 15)
-                .overlay(
-                    Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [.white.opacity(0.5), .white.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 2
+        TimelineView(.periodic(from: .now, by: 0.5)) { timeline in
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.juruCardBackground, Color.juruCardBackground.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                )
-            
-            VStack(spacing: size * 0.15) {
-                HStack(spacing: size * 0.35) {
-                    EyeComposite(isBlinking: isBlinking, browUp: effectiveBrowUp, color: color, size: size * 0.12)
-                    EyeComposite(isBlinking: isBlinking, browUp: effectiveBrowUp, color: color, size: size * 0.12)
+                    )
+                    .frame(width: size, height: size)
+                    .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 15)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.5), .white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+
+                VStack(spacing: size * 0.15) {
+                    HStack(spacing: size * 0.35) {
+                        EyeComposite(isBlinking: isBlinking, browUp: effectiveBrowUp, color: color, size: size * 0.12)
+                        EyeComposite(isBlinking: isBlinking, browUp: effectiveBrowUp, color: color, size: size * 0.12)
+                    }
+                    .offset(y: size * 0.05)
+
+                    MouthView(pucker: effectivePucker, color: color)
+                        .frame(width: size * 0.3, height: size * 0.2)
                 }
-                .offset(y: size * 0.05)
-                
-                MouthView(pucker: effectivePucker, color: color)
-                    .frame(width: size * 0.3, height: size * 0.2)
+                .offset(y: -size * 0.05)
             }
-            .offset(y: -size * 0.05)
-        }
-        .onReceive(blinkTimer) { _ in
-            if Bool.random() {
-                withAnimation(.smooth(duration: 0.15)) { isBlinking = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(.smooth(duration: 0.15)) { isBlinking = false }
+            .onChange(of: timeline.date) { _, newDate in
+                let timeSinceLastBlink = newDate.timeIntervalSince(lastBlinkTime)
+                if timeSinceLastBlink >= blinkInterval && Bool.random() {
+                    lastBlinkTime = newDate
+                    withAnimation(.smooth(duration: 0.15)) { isBlinking = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(.smooth(duration: 0.15)) { isBlinking = false }
+                    }
                 }
             }
         }

@@ -100,6 +100,17 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         loadCalibration()
     }
     
+    /// Starts the ARKit face tracking session with camera permission handling.
+    ///
+    /// - Note for Swift Playgrounds: When running in Swift Playgrounds for the first time,
+    ///   granting camera permission causes the app to close. This is **expected iOS behavior**
+    ///   (the system restarts the app process after permission grant). Simply reopen the app
+    ///   and it will function normally with the granted permission.
+    ///
+    /// - Note for Xcode: When running via Xcode on a real device, the permission flow is
+    ///   seamless and the app continues without interruption.
+    ///
+    /// - Parameter session: The ARSession to configure for face tracking.
     func start(session: ARSession) {
         self.currentSession = session
         switch AVCaptureDevice.authorizationStatus(for: .video) {

@@ -7,71 +7,91 @@
 
 import SwiftUI
 
+/// A view that guides users through the facial gesture calibration process.
+///
+/// The calibration flow consists of four steps:
+/// 1. **Neutral**: Captures the user's resting facial state (baseline) over 1 second
+/// 2. **Brows**: User raises eyebrows to set the navigation gesture threshold
+/// 3. **Pucker**: User makes a kiss face to set the selection gesture threshold
+/// 4. **Done**: Calibration complete, user can proceed to main app
+///
+/// ## Architecture
+/// Uses `TimelineView` with controlled tick intervals to prevent memory leaks
+/// that would occur with traditional `Timer.publish`. The tick rate is controlled
+/// by `tickInterval` (50ms) with guard clauses ensuring consistent timing regardless
+/// of view re-renders.
+///
+/// ## Animation Loop
+/// During the brows and pucker steps, an animated demo shows the user what gesture
+/// to perform before it becomes their turn to replicate it.
 struct CalibrationView: View {
     var faceManager: FaceTrackingManager
     var onCalibrationComplete: () -> Void
-    
+
+    /// Represents the current step in the calibration flow
     enum Step { case neutral, brows, pucker, done }
-    
+
     @State private var currentStep: Step = .neutral
     @State private var progress: CGFloat = 0.0
     @State private var isUserTurn: Bool = false
-    
-    // --- ESTADO DE PREPARAÇÃO (Countdown) ---
     @State private var isPreparing: Bool = true
-    @State private var startCountdown: Double = 3.9 // Começa quase em 4 para mostrar o 3 cheio
-    
-    // Feedback Visual de Sucesso
+    @State private var startCountdown: Double = 3.9
     @State private var showSuccessFeedback: Bool = false
-    
-    // Animação da Demo (Loop)
     @State private var animBrow: Double = 0.0
     @State private var animPucker: Double = 0.0
-    
-    // Coleta de Dados
     @State private var neutralCount: Int = 0
     @State private var neutralBrowSum: Double = 0
     @State private var neutralPuckerSum: Double = 0
-    
-    // Timer para Animação Demo e Coleta Neutral
-    let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
-    @State private var timeAccumulator: Double = 0.0
-    
+    @State private var lastTickTime: Date = .distantPast
+    @State private var lastNeutralCollectTime: Date = .distantPast
+
+    /// The minimum interval between timeline ticks (50ms = 20Hz)
+    private let tickInterval: TimeInterval = 0.05
+
     var body: some View {
-        GeometryReader { geo in
-            let isLandscape = geo.size.width > geo.size.height
-            let isPad = geo.size.width > 600
-            // Escala dinâmica para iPad
-            let scale = isPad ? (isLandscape ? 1.2 : 1.3) : 1.0
-            
-            ZStack {
-                Color.juruBackground.ignoresSafeArea()
-                
-                // Background Decorativo Sutil
-                AmbientCalibrationBackground(step: currentStep, scale: scale)
-                
-                if isLandscape {
-                    // --- LAYOUT HORIZONTAL (iPad Landscape) ---
-                    HStack(spacing: 40) {
-                        // ESQUERDA: Textos e Controles
-                        VStack(alignment: .leading, spacing: 40) {
-                            Spacer()
-                            InstructionText(step: currentStep, scale: scale, align: .leading)
-                            
-                            ControlsView(
-                                currentStep: currentStep,
-                                isUserTurn: isUserTurn,
-                                stepColor: stepColor,
-                                scale: scale,
-                                onAction: onCalibrationComplete
-                            )
-                            Spacer()
+        TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
+            GeometryReader { geo in
+                let isLandscape = geo.size.width > geo.size.height
+                let isPad = geo.size.width > 600
+                let scale = isPad ? (isLandscape ? 1.2 : 1.3) : 1.0
+
+                ZStack {
+                    Color.juruBackground.ignoresSafeArea()
+                    AmbientCalibrationBackground(step: currentStep, scale: scale)
+
+                    if isLandscape {
+                        HStack(spacing: 40) {
+                            VStack(alignment: .leading, spacing: 40) {
+                                Spacer()
+                                InstructionText(step: currentStep, scale: scale, align: .leading)
+                                ControlsView(
+                                    currentStep: currentStep,
+                                    isUserTurn: isUserTurn,
+                                    stepColor: stepColor,
+                                    scale: scale,
+                                    onAction: onCalibrationComplete
+                                )
+                                Spacer()
+                            }
+                            .frame(width: geo.size.width * 0.4)
+                            .padding(.leading, 60)
+
+                            ZStack {
+                                AvatarHeroArea(
+                                    faceManager: faceManager,
+                                    progress: progress,
+                                    animBrow: isUserTurn ? nil : animBrow,
+                                    animPucker: isUserTurn ? nil : animPucker,
+                                    showSuccessFeedback: showSuccessFeedback,
+                                    stepColor: stepColor,
+                                    scale: scale * 1.1
+                                )
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .frame(width: geo.size.width * 0.4) // 40% da largura
-                        .padding(.leading, 60)
-                        
-                        // DIREITA: Avatar Centralizado
-                        ZStack {
+                    } else {
+                        VStack(spacing: 0) {
+                            Spacer()
                             AvatarHeroArea(
                                 faceManager: faceManager,
                                 progress: progress,
@@ -79,113 +99,101 @@ struct CalibrationView: View {
                                 animPucker: isUserTurn ? nil : animPucker,
                                 showSuccessFeedback: showSuccessFeedback,
                                 stepColor: stepColor,
-                                scale: scale * 1.1 // Avatar um pouco maior no iPad
+                                scale: scale
+                            )
+                            .padding(.top, 40)
+                            Spacer()
+
+                            VStack(spacing: 30 * scale) {
+                                InstructionText(step: currentStep, scale: scale, align: .center)
+                                    .padding(.horizontal, 30)
+                                ControlsView(
+                                    currentStep: currentStep,
+                                    isUserTurn: isUserTurn,
+                                    stepColor: stepColor,
+                                    scale: scale,
+                                    onAction: onCalibrationComplete
+                                )
+                            }
+                            .padding(.bottom, 50)
+                            .background(
+                                Rectangle()
+                                    .fill(.ultraThinMaterial)
+                                    .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .bottom))
+                                    .ignoresSafeArea()
+                                    .padding(.top, -100)
                             )
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                } else {
-                    // --- LAYOUT VERTICAL (iPhone / iPad Portrait) ---
-                    VStack(spacing: 0) {
-                        Spacer()
-                        
-                        // Avatar no Centro/Topo (Hero)
-                        AvatarHeroArea(
-                            faceManager: faceManager,
-                            progress: progress,
-                            animBrow: isUserTurn ? nil : animBrow,
-                            animPucker: isUserTurn ? nil : animPucker,
-                            showSuccessFeedback: showSuccessFeedback,
-                            stepColor: stepColor,
-                            scale: scale
-                        )
-                        .padding(.top, 40)
-                        
-                        Spacer()
-                        
-                        // Texto e Controles na parte inferior (Mais acessível)
-                        VStack(spacing: 30 * scale) {
-                            InstructionText(step: currentStep, scale: scale, align: .center)
-                                .padding(.horizontal, 30)
-                            
-                            ControlsView(
-                                currentStep: currentStep,
-                                isUserTurn: isUserTurn,
-                                stepColor: stepColor,
-                                scale: scale,
-                                onAction: onCalibrationComplete
-                            )
+
+                    if isPreparing {
+                        Color.black.opacity(0.7).ignoresSafeArea()
+                            .transition(.opacity)
+
+                        VStack(spacing: 20 * scale) {
+                            Text("Get Ready")
+                                .font(.juruFont(.title, weight: .bold))
+                                .foregroundStyle(.white)
+                                .opacity(0.9)
+
+                            Text("\(Int(startCountdown))")
+                                .font(.system(size: 100 * scale, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Color.juruTeal)
+                                .contentTransition(.numericText())
+                                .shadow(color: .juruTeal.opacity(0.5), radius: 20)
+                                .id(Int(startCountdown))
                         }
-                        .padding(.bottom, 50)
-                        .background(
-                            // Gradiente suave atrás do texto para leitura
-                            Rectangle()
-                                .fill(.ultraThinMaterial)
-                                .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .bottom))
-                                .ignoresSafeArea()
-                                .padding(.top, -100)
-                        )
+                        .transition(.scale.combined(with: .opacity))
+                        .zIndex(100)
                     }
-                }
-                
-                // --- OVERLAY DE CONTAGEM REGRESSIVA ---
-                if isPreparing {
-                    Color.black.opacity(0.7).ignoresSafeArea()
-                        .transition(.opacity)
-                    
-                    VStack(spacing: 20 * scale) {
-                        Text("Get Ready")
-                            .font(.juruFont(.title, weight: .bold))
-                            .foregroundStyle(.white)
-                            .opacity(0.9)
-                        
-                        Text("\(Int(startCountdown))")
-                            .font(.system(size: 100 * scale, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Color.juruTeal)
-                            .contentTransition(.numericText())
-                            .shadow(color: .juruTeal.opacity(0.5), radius: 20)
-                            .id(Int(startCountdown)) // Força animação na troca de número
-                    }
-                    .transition(.scale.combined(with: .opacity))
-                    .zIndex(100)
                 }
             }
+            .onChange(of: timeline.date) { _, _ in
+                handleTimelineTick()
+            }
         }
-        // Sensores
         .onChange(of: faceManager.rawValues[.browUp]) { _, val in handleInput(Float(val ?? 0), gesture: .browUp) }
         .onChange(of: faceManager.rawValues[.pucker]) { _, val in handleInput(Float(val ?? 0), gesture: .pucker) }
-        // Loop de Animação e Coleta
-        .onReceive(timer) { _ in
-            if isPreparing {
-                // Lógica de Contagem Regressiva
-                if startCountdown > 1.0 {
-                    withAnimation(.linear(duration: 0.05)) {
-                        startCountdown -= 0.05
-                    }
-                } else {
-                    // Fim da contagem
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        isPreparing = false
-                    }
+    }
+
+    /// Processes each timeline tick with controlled frequency.
+    ///
+    /// This method ensures consistent 50ms intervals between updates regardless of
+    /// how frequently the TimelineView triggers due to other state changes.
+    /// Uses guard clause to skip processing if insufficient time has elapsed.
+    private func handleTimelineTick() {
+        let now = Date.now
+        let elapsed = now.timeIntervalSince(lastTickTime)
+
+        guard elapsed >= tickInterval else { return }
+        lastTickTime = now
+
+        if isPreparing {
+            if startCountdown > 1.0 {
+                withAnimation(.linear(duration: 0.05)) {
+                    startCountdown -= tickInterval
                 }
             } else {
-                // Lógica Normal de Calibração (Só roda após a contagem)
-                if currentStep == .neutral {
-                    collectNeutralData()
-                } else if !isUserTurn && (currentStep == .brows || currentStep == .pucker) {
-                    updateDemoLoop()
+                withAnimation(.easeOut(duration: 0.3)) {
+                    isPreparing = false
                 }
+            }
+        } else {
+            if currentStep == .neutral {
+                collectNeutralData(now: now)
+            } else if !isUserTurn && (currentStep == .brows || currentStep == .pucker) {
+                updateDemoLoop(elapsed: tickInterval)
             }
         }
     }
-    
-    // MARK: - Componentes Visuais
-    
+
+    // MARK: - Components
+
     struct InstructionText: View {
         let step: CalibrationView.Step
         let scale: CGFloat
         let align: TextAlignment
-        
+
         var body: some View {
             VStack(alignment: align == .leading ? .leading : .center, spacing: 16 * scale) {
                 Text(title)
@@ -194,8 +202,7 @@ struct CalibrationView: View {
                     .foregroundStyle(color)
                     .transition(.blurReplace)
                     .id("T-\(step)")
-                
-                // Texto Secundário
+
                 Text(description)
                     .font(.system(size: 26 * scale, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.juruText.opacity(0.95))
@@ -206,7 +213,7 @@ struct CalibrationView: View {
                     .id("D-\(step)")
             }
         }
-        
+
         var title: String {
             switch step {
             case .neutral: return "Relax Face"
@@ -215,7 +222,7 @@ struct CalibrationView: View {
             case .done: return "All Set!"
             }
         }
-        
+
         var description: String {
             switch step {
             case .neutral: return "Keep your face natural and still.\nFinding your zero point..."
@@ -224,7 +231,7 @@ struct CalibrationView: View {
             case .done: return "Calibration complete.\nYour voice is ready."
             }
         }
-        
+
         var color: Color {
             switch step {
             case .neutral: return .gray
@@ -234,7 +241,7 @@ struct CalibrationView: View {
             }
         }
     }
-    
+
     struct AvatarHeroArea: View {
         var faceManager: FaceTrackingManager
         let progress: CGFloat
@@ -243,16 +250,14 @@ struct CalibrationView: View {
         let showSuccessFeedback: Bool
         let stepColor: Color
         let scale: CGFloat
-        
+
         var body: some View {
             let size = 260 * scale
             ZStack {
-                // Anel Fundo
                 Circle()
                     .stroke(Color.juruText.opacity(0.1), lineWidth: 24 * scale)
                     .frame(width: size + 50, height: size + 50)
-                
-                // Anel Progresso
+
                 Circle()
                     .trim(from: 0, to: progress)
                     .stroke(stepColor, style: StrokeStyle(lineWidth: 24 * scale, lineCap: .round))
@@ -260,8 +265,7 @@ struct CalibrationView: View {
                     .rotationEffect(.degrees(-90))
                     .shadow(color: stepColor.opacity(0.6), radius: 20)
                     .animation(.linear(duration: 0.1), value: progress)
-                
-                // Avatar
+
                 JuruAvatarView(
                     faceManager: faceManager,
                     manualBrowUp: animBrow,
@@ -270,8 +274,7 @@ struct CalibrationView: View {
                 )
                 .opacity(showSuccessFeedback ? 0.3 : 1.0)
                 .blur(radius: showSuccessFeedback ? 15 : 0)
-                
-                // Feedback de Sucesso
+
                 if showSuccessFeedback {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 120 * scale))
@@ -282,14 +285,14 @@ struct CalibrationView: View {
             }
         }
     }
-    
+
     struct ControlsView: View {
         let currentStep: CalibrationView.Step
         let isUserTurn: Bool
         let stepColor: Color
         let scale: CGFloat
         let onAction: () -> Void
-        
+
         var body: some View {
             VStack {
                 if currentStep == .done {
@@ -318,7 +321,7 @@ struct CalibrationView: View {
                         Image(systemName: isUserTurn ? "record.circle.fill" : "eye.fill")
                             .symbolEffect(.bounce, value: isUserTurn)
                             .font(.system(size: 28 * scale))
-                        
+
                         Text(isUserTurn ? "YOUR TURN" : "WATCH JURU")
                             .font(.system(size: 24 * scale, weight: .bold))
                     }
@@ -334,7 +337,7 @@ struct CalibrationView: View {
             }
         }
     }
-    
+
     struct AmbientCalibrationBackground: View {
         let step: CalibrationView.Step
         let scale: CGFloat
@@ -355,9 +358,10 @@ struct CalibrationView: View {
             }
         }
     }
-    
-    // MARK: - Logic & Animation Loop
-    
+
+    // MARK: - Logic
+
+    /// Returns the theme color for the current calibration step
     var stepColor: Color {
         switch currentStep {
         case .neutral: return .gray
@@ -366,39 +370,54 @@ struct CalibrationView: View {
         case .done: return .juruGold
         }
     }
-    
-    // Atualiza a animação do Avatar (Demo)
-    func updateDemoLoop() {
-        timeAccumulator += 0.05
-        
+
+    @State private var demoTimeAccumulator: Double = 0.0
+
+    /// Updates the avatar demo animation loop.
+    ///
+    /// Runs a 2.5-second cycle showing the user what gesture to perform:
+    /// - 0.0-0.5s: Relaxed state
+    /// - 0.5-1.5s: Active gesture (brow raise or pucker)
+    /// - 1.5-2.5s: Return to relaxed
+    ///
+    /// - Parameter elapsed: Time since last update (should be ~50ms)
+    func updateDemoLoop(elapsed: TimeInterval) {
+        demoTimeAccumulator += elapsed
+
         if currentStep == .brows {
-            // Ciclo: 2.5 segundos
-            let cycle = timeAccumulator.truncatingRemainder(dividingBy: 2.5)
-            
-            if cycle < 0.5 { // Prepara
+            let cycle = demoTimeAccumulator.truncatingRemainder(dividingBy: 2.5)
+            if cycle < 0.5 {
                 withAnimation(.spring(response: 0.4)) { animBrow = 0.0 }
-            } else if cycle < 1.5 { // Ação: Levanta Sobrancelha (Hold)
+            } else if cycle < 1.5 {
                 withAnimation(.spring(response: 0.3)) { animBrow = 1.0 }
-            } else { // Relaxa
+            } else {
                 withAnimation(.spring(response: 0.4)) { animBrow = 0.0 }
             }
-            
         } else if currentStep == .pucker {
-            // Ciclo: 2.5 segundos
-            let cycle = timeAccumulator.truncatingRemainder(dividingBy: 2.5)
-            
-            if cycle < 0.5 { // Prepara
+            let cycle = demoTimeAccumulator.truncatingRemainder(dividingBy: 2.5)
+            if cycle < 0.5 {
                 withAnimation(.spring(response: 0.4)) { animPucker = 0.0 }
-            } else if cycle < 1.5 { // Ação: Bico (Hold)
+            } else if cycle < 1.5 {
                 withAnimation(.spring(response: 0.3)) { animPucker = 1.0 }
-            } else { // Relaxa
+            } else {
                 withAnimation(.spring(response: 0.4)) { animPucker = 0.0 }
             }
         }
     }
-    
-    func collectNeutralData() {
-        if neutralCount < 20 { // 1.0 segundo de calibração
+
+    /// Collects facial data samples to establish the user's neutral baseline.
+    ///
+    /// Gathers 20 samples at 50ms intervals (total ~1 second) to calculate
+    /// the average resting position for both eyebrow and pucker gestures.
+    /// This baseline is subtracted from future readings to normalize input.
+    ///
+    /// - Parameter now: Current timestamp for interval control
+    func collectNeutralData(now: Date) {
+        let timeSinceLastCollect = now.timeIntervalSince(lastNeutralCollectTime)
+        guard timeSinceLastCollect >= tickInterval else { return }
+        lastNeutralCollectTime = now
+
+        if neutralCount < 20 {
             neutralBrowSum += faceManager.rawValues[.browUp] ?? 0
             neutralPuckerSum += faceManager.rawValues[.pucker] ?? 0
             neutralCount += 1
@@ -411,48 +430,51 @@ struct CalibrationView: View {
             triggerSuccessAndNext(to: .brows)
         }
     }
-    
+
+    /// Displays success feedback and transitions to the next calibration step.
+    ///
+    /// Shows a checkmark animation for 1.2 seconds, then advances to the next step.
+    /// For brows and pucker steps, shows a 3-second demo before enabling user turn.
+    ///
+    /// - Parameter nextStep: The step to transition to after the success animation
     func triggerSuccessAndNext(to nextStep: Step) {
         let gen = UINotificationFeedbackGenerator()
         gen.notificationOccurred(.success)
-        
+
         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { showSuccessFeedback = true }
-        
-        // Pausa de 1.2s para mostrar o sucesso
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             withAnimation {
                 showSuccessFeedback = false
                 currentStep = nextStep
                 if nextStep != .done { isUserTurn = false }
                 progress = 0.0
-                timeAccumulator = 0.0 // Reset loop de animação
+                demoTimeAccumulator = 0.0
                 animBrow = 0.0
                 animPucker = 0.0
             }
-            // Delay para dar a vez ao usuário após ver a demo
             if nextStep != .done {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { // Demo roda por 3s
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                     withAnimation { isUserTurn = true }
                 }
             }
         }
     }
-    
+
     func handleInput(_ val: Float, gesture: FaceGesture) {
         guard isUserTurn else { return }
-        
+
         let base = faceManager.calibration.restingBase[gesture] ?? 0.0
         let corrected = Double(val) - base
         let correct = (currentStep == .brows && gesture == .browUp) || (currentStep == .pucker && gesture == .pucker)
-        
+
         if correct && corrected > 0.1 {
             faceManager.setCalibrationMax(for: gesture, value: val)
-            // Preenche o progresso conforme o usuário sustenta a expressão
             withAnimation(.linear(duration: 0.1)) { progress += 0.02 }
             if progress >= 1.0 { completeStep() }
         }
     }
-    
+
     func completeStep() {
         isUserTurn = false
         if currentStep == .brows { triggerSuccessAndNext(to: .pucker) }

@@ -406,56 +406,67 @@ struct AmazonRevealScene: View {
     }
 }
 
+/// Animated demonstration scene showing facial gesture mechanics.
+///
+/// Displays different demos based on the current onboarding phase:
+/// - **demoNav**: Shows eyebrow raise toggling between menu options
+/// - **demoPuckerSelect**: Shows short pucker hold for selection (1.2s)
+/// - **demoPuckerUndo**: Shows long pucker hold for undo action (2.0s)
+///
+/// ## Architecture
+/// Uses `TimelineView` at 50ms intervals for smooth animation without memory leaks.
+/// The avatar mirrors the demo gestures in real-time to teach users the interaction model.
 struct TechDemoScene: View {
     var phase: OnboardingView.Phase
     var faceManager: FaceTrackingManager
     var scale: CGFloat = 1.0
-    
+
     @State private var demoBrow: Double = 0.0
     @State private var demoPucker: Double = 0.0
     @State private var activeIndex: Int = 0
     @State private var puckerProgress: Double = 0.0
     @State private var puckerColor: Color = .juruTeal
-    
-    let timer = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
-    
+
     var body: some View {
-        HStack(spacing: 50 * scale) {
-            // UI Mock
-            VStack(spacing: 20 * scale) {
-                if phase == .demoNav {
-                    GlassCard(icon: "hand.wave", label: "Hello", isActive: activeIndex == 0, scale: scale)
-                    GlassCard(icon: "bolt.heart", label: "Pain", isActive: activeIndex == 1, scale: scale)
-                } else {
-                    ZStack {
-                        Circle().stroke(Color.white.opacity(0.1), lineWidth: 8 * scale)
-                        Circle().trim(from: 0, to: puckerProgress)
-                            .stroke(puckerColor, style: StrokeStyle(lineWidth: 8 * scale, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                        Image(systemName: puckerColor == .red ? "arrow.uturn.backward" : "checkmark")
-                            .font(.system(size: 34 * scale, weight: .bold))
-                            .foregroundStyle(puckerColor)
-                            .opacity(puckerProgress > 0.1 ? 1 : 0.3)
-                            .scaleEffect(puckerProgress > 0.1 ? 1.2 : 1.0)
+        TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
+            HStack(spacing: 50 * scale) {
+                VStack(spacing: 20 * scale) {
+                    if phase == .demoNav {
+                        GlassCard(icon: "hand.wave", label: "Hello", isActive: activeIndex == 0, scale: scale)
+                        GlassCard(icon: "bolt.heart", label: "Pain", isActive: activeIndex == 1, scale: scale)
+                    } else {
+                        ZStack {
+                            Circle().stroke(Color.white.opacity(0.1), lineWidth: 8 * scale)
+                            Circle().trim(from: 0, to: puckerProgress)
+                                .stroke(puckerColor, style: StrokeStyle(lineWidth: 8 * scale, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+                            Image(systemName: puckerColor == .red ? "arrow.uturn.backward" : "checkmark")
+                                .font(.system(size: 34 * scale, weight: .bold))
+                                .foregroundStyle(puckerColor)
+                                .opacity(puckerProgress > 0.1 ? 1 : 0.3)
+                                .scaleEffect(puckerProgress > 0.1 ? 1.2 : 1.0)
+                        }
+                        .frame(width: 120 * scale, height: 120 * scale)
                     }
-                    .frame(width: 120 * scale, height: 120 * scale)
                 }
+                .frame(width: 140 * scale)
+
+                JuruAvatarView(
+                    faceManager: faceManager,
+                    manualBrowUp: demoBrow,
+                    manualPucker: demoPucker,
+                    size: 180 * scale
+                )
             }
-            .frame(width: 140 * scale)
-            
-            // Avatar
-            JuruAvatarView(
-                faceManager: faceManager,
-                manualBrowUp: demoBrow,
-                manualPucker: demoPucker,
-                size: 180 * scale
-            )
+            .onChange(of: timeline.date) { _, _ in
+                update()
+            }
         }
         .onAppear { reset() }
         .onChange(of: phase) { reset() }
-        .onReceive(timer) { _ in update() }
     }
-    
+
+    /// A glassmorphic card component for menu option display
     struct GlassCard: View {
         let icon: String; let label: String; let isActive: Bool; let scale: CGFloat
         var body: some View {
