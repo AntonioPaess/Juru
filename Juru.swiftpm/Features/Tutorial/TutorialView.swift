@@ -115,10 +115,10 @@ struct TutorialView: View {
     @Environment(\.horizontalSizeClass) var sizeClass
     var isPad: Bool { sizeClass == .regular }
 
-    private let faceCheckInterval: TimeInterval = 0.2
+    private let faceCheckInterval: TimeInterval = AppConfig.Timing.faceCheckInterval
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.2)) { timeline in
+        TimelineView(.periodic(from: .now, by: AppConfig.Timing.faceCheckInterval)) { timeline in
             ZStack {
                 tutorialContent
 
@@ -153,7 +153,7 @@ struct TutorialView: View {
         lastFaceCheckTime = now
 
         let timeSinceFaceDetected = now.timeIntervalSince(faceManager.lastFaceDetectedTime)
-        let faceVisible = timeSinceFaceDetected < 0.5
+        let faceVisible = timeSinceFaceDetected < AppConfig.Timing.faceDetectionTimeout
 
         if faceVisible != isFaceDetected {
             withAnimation { isFaceDetected = faceVisible }
@@ -164,14 +164,14 @@ struct TutorialView: View {
     var tutorialContent: some View {
         VStack {
             if isPad {
-                instructionCard.padding(.top, 40)
+                instructionCard.padding(.top, AppConfig.Padding.xxxl)
                 Spacer()
             } else {
                 Spacer()
-                instructionCard.padding(.bottom, 130)
+                instructionCard.padding(.bottom, AppConfig.Padding.tutorialCardBottomIPhone)
             }
         }
-        .padding(.horizontal, isPad ? 100 : 24)
+        .padding(.horizontal, AppConfig.Padding.tutorialHorizontal(isPad: isPad))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
@@ -191,8 +191,8 @@ struct TutorialView: View {
     }
     
     var instructionCard: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(spacing: AppConfig.Padding.md) {
+            HStack(spacing: AppConfig.Padding.sm) {
                 Image(systemName: iconForPhase)
                     .font(.title)
                     .foregroundStyle(isSuccessFeedback ? .white : Color.juruTeal)
@@ -222,21 +222,21 @@ struct TutorialView: View {
                 }
                 .font(.juruFont(.callout, weight: .bold))
                 .foregroundStyle(.white)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 20)
+                .padding(.vertical, AppConfig.Padding.xs)
+                .padding(.horizontal, AppConfig.Padding.lg)
                 .background(Color.juruTeal)
                 .clipShape(Capsule())
                 .shadow(color: .juruTeal.opacity(0.3), radius: 5, y: 2)
                 .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(24)
+        .padding(AppConfig.Padding.xl)
         .background(
-            RoundedRectangle(cornerRadius: 24)
+            RoundedRectangle(cornerRadius: AppConfig.CornerRadius.md)
                 .fill(isSuccessFeedback ? AnyShapeStyle(Color.juruTeal) : AnyShapeStyle(Material.regular))
                 .shadow(color: Color.black.opacity(0.1), radius: 15, y: 5)
         )
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: phase)
+        .animation(.spring(response: AppConfig.Animation.springResponse, dampingFraction: AppConfig.Animation.springDamping), value: phase)
     }
     
     // MARK: - Lógica de Verificação
@@ -367,9 +367,9 @@ struct TutorialView: View {
     func checkSpeaking() {
         if vocabManager.isSpeaking {
             if phase == .quick_SelectPain {
-                advance(to: .type_Intro, delay: 2.0)
+                advance(to: .type_Intro, delay: AppConfig.Timing.tutorialSpeakingDelay)
             } else if phase == .speak_SelectAction {
-                advance(to: .clear_Intro, delay: 2.0)
+                advance(to: .clear_Intro, delay: AppConfig.Timing.tutorialSpeakingDelay)
             }
         }
     }
@@ -380,25 +380,25 @@ struct TutorialView: View {
         if msg.localizedCaseInsensitiveContains("Help") {
             switch phase {
             case .predict_FocusL1, .predict_SelectL1, .predict_FocusL2, .predict_SelectL2, .predict_FocusFinal, .predict_SelectHelp:
-                advance(to: .mistake_Intro, delay: 0.5)
+                advance(to: .mistake_Intro, delay: AppConfig.Timing.tutorialQuickDelay)
                 return
             default: break
             }
         }
-        
+
         if msg.localizedCaseInsensitiveContains("Hello") {
             switch phase {
             case .fix_FocusRight, .fix_OpenMenu, .fix_FocusL1, .fix_SelectL1, .fix_FocusL2, .fix_SelectL2, .fix_FocusFinal, .fix_SelectHello:
-                advance(to: .speak_Intro, delay: 0.5)
+                advance(to: .speak_Intro, delay: AppConfig.Timing.tutorialQuickDelay)
                 return
             default: break
             }
         }
-        
+
         switch phase {
         case .type_SelectH:
             if msg.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("H") {
-                advance(to: .predict_Intro, delay: 0.5)
+                advance(to: .predict_Intro, delay: AppConfig.Timing.tutorialQuickDelay)
             }
         case .delete_Space:
             if msg.localizedCaseInsensitiveContains("Help") { advance(to: .delete_P) }
@@ -417,7 +417,7 @@ struct TutorialView: View {
         triggerSuccess()
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             setPhase(next)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Animation.slow) {
                 self.isTransitioning = false
             }
         }
@@ -435,23 +435,23 @@ struct TutorialView: View {
         
         switch p {
         case .intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .intro { setPhase(.mech_Brows) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialIntroDelay) { if phase == .intro { setPhase(.mech_Brows) } }
         case .quick_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .quick_Intro { setPhase(.quick_FocusRoot) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialIntroDelay) { if phase == .quick_Intro { setPhase(.quick_FocusRoot) } }
         case .type_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .type_Intro { setPhase(.type_FocusLeft) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialIntroDelay) { if phase == .type_Intro { setPhase(.type_FocusLeft) } }
         case .predict_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { if phase == .predict_Intro { setPhase(.predict_FocusRight) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialExtendedDelay) { if phase == .predict_Intro { setPhase(.predict_FocusRight) } }
         case .mistake_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { if phase == .mistake_Intro { setPhase(.delete_Space) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialExtendedDelay) { if phase == .mistake_Intro { setPhase(.delete_Space) } }
         case .fix_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .fix_Intro { setPhase(.fix_FocusRight) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialIntroDelay) { if phase == .fix_Intro { setPhase(.fix_FocusRight) } }
         case .speak_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .speak_Intro { setPhase(.speak_OpenMenu) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialIntroDelay) { if phase == .speak_Intro { setPhase(.speak_OpenMenu) } }
         case .clear_Intro:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { if phase == .clear_Intro { setPhase(.clear_SelectAction) } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialIntroDelay) { if phase == .clear_Intro { setPhase(.clear_SelectAction) } }
         case .completed:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { onTutorialComplete() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialCompletionDelay) { onTutorialComplete() }
         default: break
         }
     }
@@ -463,7 +463,7 @@ struct TutorialView: View {
     
     func triggerSuccess() {
         withAnimation { isSuccessFeedback = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { withAnimation { isSuccessFeedback = false } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.tutorialSuccessFeedback) { withAnimation { isSuccessFeedback = false } }
     }
     
     func updateTexts() {

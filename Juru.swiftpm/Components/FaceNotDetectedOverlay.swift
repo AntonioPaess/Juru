@@ -24,13 +24,13 @@ struct FaceNotDetectedOverlay: View {
                 Color.black.opacity(0.75)
                     .ignoresSafeArea()
 
-                VStack(spacing: 24 * scale) {
+                VStack(spacing: AppConfig.Padding.xl * scale) {
                     Image(systemName: "face.dashed")
                         .font(.system(size: 80 * scale))
                         .foregroundStyle(Color.juruCoral)
                         .symbolEffect(.pulse)
 
-                    VStack(spacing: 12 * scale) {
+                    VStack(spacing: AppConfig.Padding.sm * scale) {
                         Text("Face Not Detected")
                             .font(.juruFont(.title2, weight: .bold))
                             .foregroundStyle(.white)
@@ -39,16 +39,16 @@ struct FaceNotDetectedOverlay: View {
                             .font(.juruFont(.body))
                             .foregroundStyle(.white.opacity(0.8))
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
+                            .padding(.horizontal, AppConfig.Padding.xxxl)
                     }
 
-                    HStack(spacing: 16 * scale) {
+                    HStack(spacing: AppConfig.Padding.md * scale) {
                         TipItem(icon: "lightbulb.fill", text: "Good lighting", scale: scale)
                         TipItem(icon: "camera.fill", text: "Face the camera", scale: scale)
                     }
-                    .padding(.top, 8)
+                    .padding(.top, AppConfig.Padding.xs)
                 }
-                .padding(32)
+                .padding(AppConfig.Padding.xl)
             }
             .transition(.opacity.combined(with: .scale(scale: 0.95)))
         }
@@ -61,16 +61,16 @@ private struct TipItem: View {
     var scale: CGFloat = 1.0
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppConfig.Padding.xs) {
             Image(systemName: icon)
-                .font(.system(size: 16 * scale))
+                .font(.system(size: AppConfig.Padding.md * scale))
                 .foregroundStyle(Color.juruGold)
 
             Text(text)
                 .font(.juruFont(.caption, weight: .medium))
                 .foregroundStyle(.white.opacity(0.7))
         }
-        .padding(.horizontal, 16 * scale)
+        .padding(.horizontal, AppConfig.Padding.md * scale)
         .padding(.vertical, 10 * scale)
         .background(Color.white.opacity(0.1))
         .clipShape(Capsule())

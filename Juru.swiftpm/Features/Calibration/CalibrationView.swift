@@ -35,7 +35,7 @@ struct CalibrationView: View {
     @State private var progress: CGFloat = 0.0
     @State private var isUserTurn: Bool = false
     @State private var isPreparing: Bool = true
-    @State private var startCountdown: Double = 3.9
+    @State private var startCountdown: Double = AppConfig.Timing.calibrationCountdown
     @State private var showSuccessFeedback: Bool = false
     @State private var animBrow: Double = 0.0
     @State private var animPucker: Double = 0.0
@@ -51,23 +51,22 @@ struct CalibrationView: View {
     /// Prevents concurrent executions of triggerSuccessAndNext to avoid state corruption.
     @State private var isStepTransitioning: Bool = false
 
-    /// The minimum interval between timeline ticks (50ms = 20Hz)
-    private let tickInterval: TimeInterval = 0.05
+    private let tickInterval: TimeInterval = AppConfig.Timing.tickInterval
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
+        TimelineView(.periodic(from: .now, by: AppConfig.Timing.tickInterval)) { timeline in
             GeometryReader { geo in
                 let isLandscape = geo.size.width > geo.size.height
                 let isPad = geo.size.width > 600
-                let scale = isPad ? (isLandscape ? 1.2 : 1.3) : 1.0
+                let scale = AppConfig.Scale.forDevice(isPad: isPad, isLandscape: isLandscape)
 
                 ZStack {
                     Color.juruBackground.ignoresSafeArea()
                     AmbientCalibrationBackground(step: currentStep, scale: scale)
 
                     if isLandscape {
-                        HStack(spacing: 40) {
-                            VStack(alignment: .leading, spacing: 40) {
+                        HStack(spacing: AppConfig.Padding.xxxl) {
+                            VStack(alignment: .leading, spacing: AppConfig.Padding.xxxl) {
                                 Spacer()
                                 InstructionText(step: currentStep, scale: scale, align: .leading)
                                 ControlsView(
@@ -79,8 +78,8 @@ struct CalibrationView: View {
                                 )
                                 Spacer()
                             }
-                            .frame(width: geo.size.width * 0.4)
-                            .padding(.leading, 60)
+                            .frame(width: geo.size.width * AppConfig.Layout.landscapeLeftPanelWidth)
+                            .padding(.leading, AppConfig.Padding.landscapeSideMargin)
 
                             ZStack {
                                 AvatarHeroArea(
@@ -90,7 +89,7 @@ struct CalibrationView: View {
                                     animPucker: isUserTurn ? nil : animPucker,
                                     showSuccessFeedback: showSuccessFeedback,
                                     stepColor: stepColor,
-                                    scale: scale * 1.1
+                                    scale: scale * AppConfig.Scale.avatarLandscapeMultiplier
                                 )
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -107,12 +106,12 @@ struct CalibrationView: View {
                                 stepColor: stepColor,
                                 scale: scale
                             )
-                            .padding(.top, 40)
+                            .padding(.top, AppConfig.Padding.xxxl)
                             Spacer()
 
-                            VStack(spacing: 30 * scale) {
+                            VStack(spacing: AppConfig.Padding.xxl * scale) {
                                 InstructionText(step: currentStep, scale: scale, align: .center)
-                                    .padding(.horizontal, 30)
+                                    .padding(.horizontal, AppConfig.Padding.xxl)
                                 ControlsView(
                                     currentStep: currentStep,
                                     isUserTurn: isUserTurn,
@@ -121,7 +120,7 @@ struct CalibrationView: View {
                                     onAction: onCalibrationComplete
                                 )
                             }
-                            .padding(.bottom, 50)
+                            .padding(.bottom, AppConfig.Padding.huge)
                             .background(
                                 Rectangle()
                                     .fill(.ultraThinMaterial)
@@ -136,7 +135,7 @@ struct CalibrationView: View {
                         Color.black.opacity(0.7).ignoresSafeArea()
                             .transition(.opacity)
 
-                        VStack(spacing: 20 * scale) {
+                        VStack(spacing: AppConfig.Padding.lg * scale) {
                             Text("Get Ready")
                                 .font(.juruFont(.title, weight: .bold))
                                 .foregroundStyle(.white)
@@ -207,7 +206,7 @@ struct CalibrationView: View {
         }
 
         let timeSinceFaceDetected = now.timeIntervalSince(faceManager.lastFaceDetectedTime)
-        let faceVisible = timeSinceFaceDetected < 0.5
+        let faceVisible = timeSinceFaceDetected < AppConfig.Timing.faceDetectionTimeout
 
         if faceVisible != isFaceDetected {
             withAnimation { isFaceDetected = faceVisible }
@@ -222,7 +221,7 @@ struct CalibrationView: View {
         let align: TextAlignment
 
         var body: some View {
-            VStack(alignment: align == .leading ? .leading : .center, spacing: 16 * scale) {
+            VStack(alignment: align == .leading ? .leading : .center, spacing: AppConfig.Padding.md * scale) {
                 Text(title)
                     .font(.juruFont(.largeTitle, weight: .heavy))
                     .scaleEffect(scale)
@@ -279,16 +278,16 @@ struct CalibrationView: View {
         let scale: CGFloat
 
         var body: some View {
-            let size = 260 * scale
+            let size = AppConfig.Layout.calibrationAvatarSize * scale
             ZStack {
                 Circle()
-                    .stroke(Color.juruText.opacity(0.1), lineWidth: 24 * scale)
-                    .frame(width: size + 50, height: size + 50)
+                    .stroke(Color.juruText.opacity(0.1), lineWidth: AppConfig.Calibration.progressRingStrokeWidth * scale)
+                    .frame(width: size + AppConfig.Padding.huge, height: size + AppConfig.Padding.huge)
 
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(stepColor, style: StrokeStyle(lineWidth: 24 * scale, lineCap: .round))
-                    .frame(width: size + 50, height: size + 50)
+                    .stroke(stepColor, style: StrokeStyle(lineWidth: AppConfig.Calibration.progressRingStrokeWidth * scale, lineCap: .round))
+                    .frame(width: size + AppConfig.Padding.huge, height: size + AppConfig.Padding.huge)
                     .rotationEffect(.degrees(-90))
                     .shadow(color: stepColor.opacity(0.6), radius: 20)
                     .animation(.linear(duration: 0.1), value: progress)
@@ -304,7 +303,7 @@ struct CalibrationView: View {
 
                 if showSuccessFeedback {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 120 * scale))
+                        .font(.system(size: AppConfig.Calibration.successIconSize * scale))
                         .foregroundStyle(.white)
                         .shadow(color: stepColor, radius: 30)
                         .transition(.scale.combined(with: .opacity))
@@ -412,22 +411,22 @@ struct CalibrationView: View {
         demoTimeAccumulator += elapsed
 
         if currentStep == .brows {
-            let cycle = demoTimeAccumulator.truncatingRemainder(dividingBy: 2.5)
+            let cycle = demoTimeAccumulator.truncatingRemainder(dividingBy: AppConfig.Timing.demoCycleDuration)
             if cycle < 0.5 {
-                withAnimation(.spring(response: 0.4)) { animBrow = 0.0 }
+                withAnimation(.spring(response: AppConfig.Animation.springResponse)) { animBrow = 0.0 }
             } else if cycle < 1.5 {
-                withAnimation(.spring(response: 0.3)) { animBrow = 1.0 }
+                withAnimation(.spring(response: AppConfig.Animation.standard)) { animBrow = 1.0 }
             } else {
-                withAnimation(.spring(response: 0.4)) { animBrow = 0.0 }
+                withAnimation(.spring(response: AppConfig.Animation.springResponse)) { animBrow = 0.0 }
             }
         } else if currentStep == .pucker {
-            let cycle = demoTimeAccumulator.truncatingRemainder(dividingBy: 2.5)
+            let cycle = demoTimeAccumulator.truncatingRemainder(dividingBy: AppConfig.Timing.demoCycleDuration)
             if cycle < 0.5 {
-                withAnimation(.spring(response: 0.4)) { animPucker = 0.0 }
+                withAnimation(.spring(response: AppConfig.Animation.springResponse)) { animPucker = 0.0 }
             } else if cycle < 1.5 {
-                withAnimation(.spring(response: 0.3)) { animPucker = 1.0 }
+                withAnimation(.spring(response: AppConfig.Animation.standard)) { animPucker = 1.0 }
             } else {
-                withAnimation(.spring(response: 0.4)) { animPucker = 0.0 }
+                withAnimation(.spring(response: AppConfig.Animation.springResponse)) { animPucker = 0.0 }
             }
         }
     }
@@ -449,11 +448,11 @@ struct CalibrationView: View {
         let browVal = faceManager.rawValues[.browUp] ?? 0
         let puckerVal = faceManager.rawValues[.pucker] ?? 0
 
-        if neutralCount < 20 {
+        if neutralCount < AppConfig.Calibration.neutralSampleCount {
             neutralBrowSum += browVal
             neutralPuckerSum += puckerVal
             neutralCount += 1
-            withAnimation { progress = CGFloat(neutralCount) / 20.0 }
+            withAnimation { progress = CGFloat(neutralCount) / CGFloat(AppConfig.Calibration.neutralSampleCount) }
         } else {
             let avgBrow = Float(neutralBrowSum / Double(neutralCount))
             let avgPucker = Float(neutralPuckerSum / Double(neutralCount))
@@ -476,9 +475,9 @@ struct CalibrationView: View {
         let gen = UINotificationFeedbackGenerator()
         gen.notificationOccurred(.success)
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { showSuccessFeedback = true }
+        withAnimation(.spring(response: AppConfig.Animation.springResponse, dampingFraction: 0.6)) { showSuccessFeedback = true }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.successFeedbackDuration) {
             withAnimation {
                 showSuccessFeedback = false
                 currentStep = nextStep
@@ -489,7 +488,7 @@ struct CalibrationView: View {
                 animPucker = 0.0
             }
             if nextStep != .done {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.Timing.demoToUserTurnDelay) {
                     withAnimation { isUserTurn = true }
                     isStepTransitioning = false
                 }

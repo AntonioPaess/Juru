@@ -50,10 +50,10 @@ struct MainTypingView: View {
 
     var isPad: Bool { sizeClass == .regular }
 
-    private let faceCheckInterval: TimeInterval = 0.2
+    private let faceCheckInterval: TimeInterval = AppConfig.Timing.faceCheckInterval
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
+        TimelineView(.periodic(from: .now, by: AppConfig.Timing.tickInterval)) { timeline in
             ZStack {
                 AmbientBackground()
 
@@ -63,7 +63,7 @@ struct MainTypingView: View {
                     Image("Juru-White")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 40, height: 40)
+                        .frame(width: AppConfig.Padding.xxxl, height: AppConfig.Padding.xxxl)
                         .shadow(color: .juruTeal.opacity(0.5), radius: 8)
                     
                     Spacer()
@@ -72,35 +72,35 @@ struct MainTypingView: View {
                         Label("Release to Undo", systemImage: "arrow.uturn.backward")
                             .font(.caption.bold())
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 12)
+                            .padding(.horizontal, AppConfig.Padding.sm)
                             .padding(.vertical, 6)
                             .background(Color.red)
                             .clipShape(Capsule())
                             .transition(.scale)
                     }
                 }
-                .padding(.horizontal, 30)
-                .padding(.top, 20)
+                .padding(.horizontal, AppConfig.Padding.xxl)
+                .padding(.top, AppConfig.Padding.lg)
                 .padding(.bottom, 10)
                 .opacity(shouldDim(.none) ? 0.3 : 1.0)
                 
                 // TEXTO
                 TypingDisplayCard(text: vocabManager.currentMessage)
-                    .frame(maxHeight: isPad ? 240 : 180)
-                    .padding(.horizontal, isPad ? 80 : 24)
+                    .frame(maxHeight: isPad ? AppConfig.Layout.typingCardMaxHeightIPad : AppConfig.Layout.typingCardMaxHeightIPhone)
+                    .padding(.horizontal, AppConfig.Padding.horizontal(isPad: isPad))
                     .layoutPriority(1)
                     .opacity(shouldDim(.none) ? 0.3 : 1.0)
                 
                 // SUGESTÕES
                 if !vocabManager.suggestions.isEmpty {
                     SuggestionBar(suggestions: vocabManager.suggestions)
-                        .padding(.top, 16)
+                        .padding(.top, AppConfig.Padding.md)
                         .opacity(shouldDim(.suggestions) ? 0.3 : 1.0)
                         .overlay(
                             tutorialFocus == .suggestions ?
-                            RoundedRectangle(cornerRadius: 16)
+                            RoundedRectangle(cornerRadius: AppConfig.CornerRadius.sm)
                                 .stroke(Color.juruGold, lineWidth: 3)
-                                .padding(.horizontal, 20)
+                                .padding(.horizontal, AppConfig.Padding.lg)
                             : nil
                         )
                 }
@@ -116,17 +116,17 @@ struct MainTypingView: View {
                     
                     if faceManager.puckerState != .idle && faceManager.puckerState != .cooldown {
                         ProgressRing(state: faceManager.puckerState, progress: faceManager.interactionProgress)
-                            .frame(width: 160, height: 160)
+                            .frame(width: AppConfig.Layout.progressRingSize, height: AppConfig.Layout.progressRingSize)
                     }
                 }
-                .padding(.vertical, 20)
-                .scaleEffect(isPad ? 1.3 : 1.0)
+                .padding(.vertical, AppConfig.Padding.lg)
+                .scaleEffect(isPad ? AppConfig.Scale.feedbackCenterIPad : 1.0)
                 .opacity(shouldDim(.none) ? 0.5 : 1.0)
                 
                 Spacer()
                 
                 // BOTÕES DE AÇÃO
-                HStack(spacing: 24) {
+                HStack(spacing: AppConfig.Padding.xl) {
                     ActionCard(
                         title: vocabManager.leftLabel,
                         icon: "arrow.left",
@@ -137,7 +137,7 @@ struct MainTypingView: View {
                     .opacity(shouldDim(.leftButton) ? 0.3 : 1.0)
                     .overlay(
                         faceManager.currentFocusState == 1 ?
-                        RoundedRectangle(cornerRadius: 28).stroke(Color.white, lineWidth: 4) : nil
+                        RoundedRectangle(cornerRadius: AppConfig.CornerRadius.lg).stroke(Color.white, lineWidth: 4) : nil
                     )
                     .scaleEffect(faceManager.currentFocusState == 1 ? 1.05 : 1.0)
                     
@@ -151,19 +151,19 @@ struct MainTypingView: View {
                     .opacity(shouldDim(.rightButton) ? 0.3 : 1.0)
                     .overlay(
                         faceManager.currentFocusState == 2 ?
-                        RoundedRectangle(cornerRadius: 28).stroke(Color.white, lineWidth: 4) : nil
+                        RoundedRectangle(cornerRadius: AppConfig.CornerRadius.lg).stroke(Color.white, lineWidth: 4) : nil
                     )
                     .scaleEffect(faceManager.currentFocusState == 2 ? 1.05 : 1.0)
                 }
-                .frame(height: 200)
-                .padding(.horizontal, isPad ? 80 : 24)
-                .padding(.bottom, 20)
+                .frame(height: AppConfig.Layout.actionCardHeight)
+                .padding(.horizontal, AppConfig.Padding.horizontal(isPad: isPad))
+                .padding(.bottom, AppConfig.Padding.lg)
                 
                 Text(footerInstruction)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Color.juruSecondaryText)
                     .opacity(0.6)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, AppConfig.Padding.lg)
             }
 
                 FaceNotDetectedOverlay(isVisible: !isFaceDetected, scale: isPad ? 1.2 : 1.0)
@@ -172,7 +172,7 @@ struct MainTypingView: View {
                 handleTimelineTick()
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: tutorialFocus)
+        .animation(.spring(response: AppConfig.Animation.springResponse, dampingFraction: AppConfig.Animation.springDamping), value: tutorialFocus)
     }
 
     /// Processes each timeline tick and updates the vocabulary manager if allowed.
@@ -220,7 +220,7 @@ struct MainTypingView: View {
         lastFaceCheckTime = now
 
         let timeSinceFaceDetected = now.timeIntervalSince(faceManager.lastFaceDetectedTime)
-        let faceVisible = timeSinceFaceDetected < 0.5
+        let faceVisible = timeSinceFaceDetected < AppConfig.Timing.faceDetectionTimeout
 
         if faceVisible != isFaceDetected {
             withAnimation { isFaceDetected = faceVisible }
@@ -265,14 +265,14 @@ struct ProgressRing: View {
     }
     var body: some View {
         ZStack {
-            Circle().stroke(Color.white.opacity(0.1), lineWidth: 8)
+            Circle().stroke(Color.white.opacity(0.1), lineWidth: AppConfig.Padding.xs)
             Circle().trim(from: 0.0, to: progress)
-                .stroke(ringColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .stroke(ringColor, style: StrokeStyle(lineWidth: AppConfig.Padding.xs, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 0.05), value: progress)
             if state == .readyToSelect || state == .readyToBack {
-                Circle().fill(ringColor).frame(width: 40, height: 40)
-                    .overlay(Image(systemName: iconName).font(.system(size: 20, weight: .bold)).foregroundStyle(.white))
+                Circle().fill(ringColor).frame(width: AppConfig.Padding.xxxl, height: AppConfig.Padding.xxxl)
+                    .overlay(Image(systemName: iconName).font(.system(size: AppConfig.Padding.lg, weight: .bold)).foregroundStyle(.white))
                     .offset(y: -90).transition(.scale.combined(with: .opacity))
             }
         }
@@ -301,14 +301,14 @@ struct TypingDisplayCard: View {
                     .font(.juruFont(.largeTitle, weight: .bold))
                     .foregroundStyle(text.isEmpty ? Color.secondary.opacity(0.5) : Color.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(32)
+                    .padding(AppConfig.Padding.xl)
                     .animation(.default, value: text)
             }
         }
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-        .shadow(color: Color.black.opacity(0.05), radius: 20, x: 0, y: 10)
-        .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).stroke(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: AppConfig.CornerRadius.xl, style: .continuous))
+        .shadow(color: Color.black.opacity(0.05), radius: AppConfig.Padding.lg, x: 0, y: 10)
+        .overlay(RoundedRectangle(cornerRadius: AppConfig.CornerRadius.xl, style: .continuous).stroke(Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5), lineWidth: 1))
     }
 }
 
@@ -317,17 +317,17 @@ struct SuggestionBar: View {
     @Environment(\.horizontalSizeClass) var sizeClass
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: AppConfig.Padding.sm) {
                 ForEach(suggestions, id: \.self) { word in
                     Text(word)
                         .font(.system(.body, design: .rounded).weight(.semibold))
                         .foregroundStyle(Color.primary)
-                        .padding(.horizontal, 24).padding(.vertical, 14)
+                        .padding(.horizontal, AppConfig.Padding.xl).padding(.vertical, 14)
                         .background(.thinMaterial).clipShape(Capsule())
                         .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
                 }
             }
-            .padding(.horizontal, sizeClass == .regular ? 80 : 24).padding(.vertical, 10)
+            .padding(.horizontal, AppConfig.Padding.horizontal(isPad: sizeClass == .regular)).padding(.vertical, 10)
         }
     }
 }
@@ -341,22 +341,22 @@ struct FeedbackCenter: View {
         return .clear
     }
     var body: some View {
-        HStack(spacing: 40) {
+        HStack(spacing: AppConfig.Padding.xxxl) {
             IntensityGauge(value: faceManager.browUp, color: .juruTeal, isLeft: true)
             ZStack {
                 if isSpeaking {
                     ForEach(0..<3) { i in
                         Circle().stroke(LinearGradient(colors: [.juruTeal, .juruCoral], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 2)
-                            .frame(width: 120, height: 120).scaleEffect(isSpeaking ? 2.0 : 1.0).opacity(isSpeaking ? 0.0 : 1.0)
-                            .animation(.easeOut(duration: 1.5).repeatForever(autoreverses: false).delay(Double(i) * 0.4), value: isSpeaking)
+                            .frame(width: AppConfig.Layout.feedbackCenterContainerSize, height: AppConfig.Layout.feedbackCenterContainerSize).scaleEffect(isSpeaking ? 2.0 : 1.0).opacity(isSpeaking ? 0.0 : 1.0)
+                            .animation(.easeOut(duration: AppConfig.Animation.speakingPulse).repeatForever(autoreverses: false).delay(Double(i) * 0.4), value: isSpeaking)
                     }
                 }
                 if !isSpeaking {
-                    Circle().fill(activeColor.opacity(0.2)).frame(width: 140, height: 140).blur(radius: 20)
+                    Circle().fill(activeColor.opacity(0.2)).frame(width: 140, height: 140).blur(radius: AppConfig.Padding.lg)
                         .scaleEffect(activeColor == .clear ? 0.5 : 1.2).animation(.spring, value: activeColor)
                 }
-                Circle().fill(Color.juruCardBackground).shadow(color: Color.black.opacity(0.15), radius: 15, y: 8).frame(width: 120, height: 120)
-                JuruAvatarView(faceManager: faceManager, size: 100)
+                Circle().fill(Color.juruCardBackground).shadow(color: Color.black.opacity(0.15), radius: 15, y: 8).frame(width: AppConfig.Layout.feedbackCenterContainerSize, height: AppConfig.Layout.feedbackCenterContainerSize)
+                JuruAvatarView(faceManager: faceManager, size: AppConfig.Layout.feedbackCenterAvatarSize)
             }
             IntensityGauge(value: faceManager.mouthPucker, color: .juruCoral, isLeft: false)
         }
@@ -365,13 +365,13 @@ struct FeedbackCenter: View {
 
 struct IntensityGauge: View {
     var value: Double; var color: Color; var isLeft: Bool
-    private var fillHeight: CGFloat { let visualValue = CGFloat(min(value * 1.5, 1.0)); return visualValue * 60 }
+    private var fillHeight: CGFloat { let visualValue = CGFloat(min(value * 1.5, 1.0)); return visualValue * AppConfig.Layout.intensityGaugeHeight }
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppConfig.Padding.xs) {
             if isLeft { label }
             ZStack(alignment: .bottom) {
-                Capsule().fill(Color.gray.opacity(0.1)).frame(width: 6, height: 60)
-                Capsule().fill(color).frame(width: 6, height: fillHeight).shadow(color: color.opacity(0.5), radius: 4).animation(.linear(duration: 0.1), value: value)
+                Capsule().fill(Color.gray.opacity(0.1)).frame(width: 6, height: AppConfig.Layout.intensityGaugeHeight)
+                Capsule().fill(color).frame(width: 6, height: fillHeight).shadow(color: color.opacity(0.5), radius: 4).animation(.linear(duration: AppConfig.Animation.quick), value: value)
             }
             if !isLeft { label }
         }
@@ -383,18 +383,18 @@ struct ActionCard: View {
     let title: String; let icon: String; let color: Color; let isActive: Bool; let alignment: Alignment
     var body: some View {
         ZStack(alignment: alignment) {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: AppConfig.CornerRadius.lg, style: .continuous)
                 .fill(LinearGradient(colors: isActive ? [color, color.opacity(0.8)] : [Color.juruCardBackground, Color.juruCardBackground.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .shadow(color: isActive ? color.opacity(0.4) : Color.black.opacity(0.05), radius: isActive ? 20 : 10, y: isActive ? 10 : 5)
             VStack(alignment: alignment == .leading ? .leading : .trailing) {
-                Image(systemName: icon).font(.title3).foregroundStyle(isActive ? .white : color).padding(12)
+                Image(systemName: icon).font(.title3).foregroundStyle(isActive ? .white : color).padding(AppConfig.Padding.sm)
                     .background(Circle().fill(isActive ? .white.opacity(0.2) : color.opacity(0.1)))
                 Spacer()
                 Text(title).font(.juruFont(.title2, weight: .bold)).foregroundStyle(isActive ? .white : Color.primary)
                     .multilineTextAlignment(alignment == .leading ? .leading : .trailing).lineLimit(3).minimumScaleFactor(0.4).padding(.bottom, 4)
             }
-            .padding(24)
+            .padding(AppConfig.Padding.xl)
         }
-        .scaleEffect(isActive ? 1.02 : 1.0).animation(.spring(response: 0.3, dampingFraction: 0.6), value: isActive)
+        .scaleEffect(isActive ? 1.02 : 1.0).animation(.spring(response: AppConfig.Animation.standard, dampingFraction: 0.6), value: isActive)
     }
 }
