@@ -24,14 +24,13 @@ enum PuckerState {
 }
 
 private struct GestureConfig {
-    static let selectTime: Double = 1.2
-    static let backTime: Double = 2
-    
-    // Aumentei levemente os thresholds de segurança
-    static let browThreshold = 0.3
-    static let puckerThreshold = 0.3
-    static let throttleInterval = 0.05
-    static let minCalibrationValue: Double = 0.1
+    static let selectTime = AppConfig.Timing.selectHoldDuration
+    static let backTime = AppConfig.Timing.backHoldDuration
+
+    static let browThreshold = AppConfig.Thresholds.browDefault
+    static let puckerThreshold = AppConfig.Thresholds.puckerDefault
+    static let throttleInterval = AppConfig.Thresholds.throttleInterval
+    static let minCalibrationValue = AppConfig.Thresholds.minCalibrationValue
 }
 
 struct UserCalibration: Codable {
@@ -46,7 +45,7 @@ struct UserCalibration: Codable {
         .pucker: 0.0
     ]
     
-    var triggerFactor: Double = 0.6
+    var triggerFactor: Double = AppConfig.Thresholds.triggerFactor
 }
 
 @MainActor
@@ -260,8 +259,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
                 }
                 
             case .cooldown:
-                // Histerese de saída: só sai quando baixar muito (perto de zero corrigido)
-                if correctedPucker < (puckerThresh * 0.1) {
+                if correctedPucker < (puckerThresh * AppConfig.Thresholds.puckerHysteresis) {
                     self.puckerState = .idle
                     self.interactionProgress = 0.0
                     self.puckerStartTime = nil
