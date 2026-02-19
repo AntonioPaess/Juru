@@ -182,7 +182,7 @@ struct MainTypingView: View {
 
                     Text(footerInstruction)
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(Color.juruSecondaryText)
+                        .foregroundStyle(.secondary)
                         .opacity(0.6)
                         .padding(.bottom, AppConfig.Padding.lg)
                 }
@@ -373,30 +373,30 @@ struct ProgressRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.white.opacity(0.1), lineWidth: AppConfig.Padding.xs)
+                .stroke(Color.white.opacity(0.1), lineWidth: AppConfig.ProgressRing.strokeWidth)
 
             Circle()
                 .trim(from: 0.0, to: progress)
                 .stroke(
                     ringColor,
-                    style: StrokeStyle(lineWidth: AppConfig.Padding.xs, lineCap: .round)
+                    style: StrokeStyle(lineWidth: AppConfig.ProgressRing.strokeWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 0.05), value: progress)
+                .animation(.linear(duration: AppConfig.Animation.quick), value: progress)
 
             if state == .readyToSelect || state == .readyToBack {
                 Circle()
                     .fill(ringColor)
                     .frame(
-                        width: AppConfig.Padding.xxxl,
-                        height: AppConfig.Padding.xxxl
+                        width: AppConfig.ProgressRing.iconBadgeSize,
+                        height: AppConfig.ProgressRing.iconBadgeSize
                     )
                     .overlay(
                         Image(systemName: iconName)
-                            .font(.system(size: AppConfig.Padding.lg, weight: .bold))
+                            .font(.system(size: AppConfig.ProgressRing.iconFontSize, weight: .bold))
                             .foregroundStyle(.white)
                     )
-                    .offset(y: -90)
+                    .offset(y: AppConfig.ProgressRing.iconOffsetY)
                     .transition(.scale.combined(with: .opacity))
             }
         }
@@ -408,19 +408,21 @@ struct AmbientBackground: View {
         ZStack {
             Color.juruBackground.ignoresSafeArea()
 
-            GeometryReader { proxy in
-                Circle()
-                    .fill(Color.juruTeal.opacity(0.08))
-                    .frame(width: 600, height: 600)
-                    .blur(radius: 100)
-                    .offset(x: -200, y: -200)
+            RadialGradient(
+                colors: [Color.juruTeal.opacity(0.08), Color.clear],
+                center: .topLeading,
+                startRadius: 50,
+                endRadius: 500
+            )
+            .ignoresSafeArea()
 
-                Circle()
-                    .fill(Color.juruCoral.opacity(0.08))
-                    .frame(width: 500, height: 500)
-                    .blur(radius: 100)
-                    .position(x: proxy.size.width, y: proxy.size.height)
-            }
+            RadialGradient(
+                colors: [Color.juruCoral.opacity(0.06), Color.clear],
+                center: .bottomTrailing,
+                startRadius: 50,
+                endRadius: 400
+            )
+            .ignoresSafeArea()
         }
     }
 }
@@ -433,7 +435,7 @@ struct TypingDisplayCard: View {
     var body: some View {
         VStack(alignment: .leading) {
             ScrollView {
-                Text(text.isEmpty ? "Start smiling..." : text)
+                Text(text.isEmpty ? "Type to begin..." : text)
                     .font(.juruFont(.largeTitle, weight: .bold))
                     .foregroundStyle(
                         text.isEmpty
@@ -445,8 +447,10 @@ struct TypingDisplayCard: View {
                     .animation(.default, value: text)
             }
         }
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: AppConfig.CornerRadius.xl, style: .continuous))
+        .background(
+            .regularMaterial,
+            in: RoundedRectangle(cornerRadius: AppConfig.CornerRadius.xl, style: .continuous)
+        )
         .shadow(
             color: Color.black.opacity(0.05),
             radius: AppConfig.Padding.lg,
@@ -611,15 +615,7 @@ struct ActionCard: View {
     var body: some View {
         ZStack(alignment: alignment) {
             RoundedRectangle(cornerRadius: AppConfig.CornerRadius.lg, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: isActive
-                            ? [color, color.opacity(0.8)]
-                            : [Color.juruCardBackground, Color.juruCardBackground.opacity(0.9)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(isActive ? color : Color.juruCardBackground)
                 .shadow(
                     color: isActive ? color.opacity(0.4) : Color.black.opacity(0.05),
                     radius: isActive ? 20 : 10,

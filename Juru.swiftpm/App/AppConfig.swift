@@ -375,5 +375,28 @@ enum AppConfig {
 
         /// Arrow indicator bounce offset
         static let arrowBounceOffset: CGFloat = 6.0
+
+        /// Action pill shadow radius
+        static let actionPillShadowRadius: CGFloat = 5.0
+
+        /// Action pill shadow Y offset
+        static let actionPillShadowY: CGFloat = 2.0
+    }
+
+    // MARK: - Progress Ring (MainTypingView)
+
+    /// Configuration for the pucker progress ring in MainTypingView.
+    enum ProgressRing {
+        /// Stroke width for the ring
+        static let strokeWidth: CGFloat = 8
+
+        /// Icon badge size inside ring
+        static let iconBadgeSize: CGFloat = 40
+
+        /// Icon font size inside badge
+        static let iconFontSize: CGFloat = 20
+
+        /// Icon badge offset from center (negative Y = upward)
+        static let iconOffsetY: CGFloat = -90
     }
 }

@@ -287,7 +287,7 @@ struct TutorialView: View {
                 .padding(.horizontal, AppConfig.Padding.lg)
                 .background(actionPillColor)
                 .clipShape(Capsule())
-                .shadow(color: actionPillColor.opacity(0.3), radius: 5, y: 2)
+                .shadow(color: actionPillColor.opacity(0.3), radius: AppConfig.Tutorial.actionPillShadowRadius, y: AppConfig.Tutorial.actionPillShadowY)
                 .padding(.top, AppConfig.Padding.md)
                 .transition(.scale.combined(with: .opacity))
             }
@@ -738,7 +738,7 @@ struct TutorialView: View {
             currentFocus = .rightButton
         case .clear_OpenMenu:
             title = "Find Clear All"
-            subtitle = "Navigate through the menu to find 'Clear All'."
+            subtitle = "Look RIGHT to open 'Predict & Edit'."
             // Dynamic focus
         case .clear_SelectAction:
             title = "Clear All"

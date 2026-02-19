@@ -71,23 +71,23 @@ extension Color {
 struct JuruCardModifier: ViewModifier {
     let isActive: Bool
     @Environment(\.colorScheme) var colorScheme
-    
+
     func body(content: Content) -> some View {
         content
             .background(isActive ? Color.juruTeal.opacity(0.15) : Color.juruCardBackground)
-            .cornerRadius(24)
+            .clipShape(RoundedRectangle(cornerRadius: AppConfig.CornerRadius.md, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 24)
+                RoundedRectangle(cornerRadius: AppConfig.CornerRadius.md, style: .continuous)
                     .stroke(borderColor, lineWidth: isActive ? 3 : 1)
             )
             .shadow(
                 color: shadowColor,
-                radius: isActive ? 12 : 8,
+                radius: isActive ? AppConfig.Padding.sm : AppConfig.Padding.xs,
                 x: 0,
                 y: isActive ? 6 : 3
             )
             .scaleEffect(isActive ? 1.02 : 1.0)
-            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isActive)
+            .animation(.spring(response: AppConfig.Animation.springResponse, dampingFraction: AppConfig.Animation.springDamping), value: isActive)
     }
     
     private var borderColor: Color {
