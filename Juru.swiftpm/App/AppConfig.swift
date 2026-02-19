@@ -268,10 +268,28 @@ enum AppConfig {
         static let neutralSampleCount: Int = 20
 
         /// Progress ring stroke width
-        static let progressRingStrokeWidth: CGFloat = 24
+        static let progressRingStrokeWidth: CGFloat = 12
+
+        /// Progress ring track opacity
+        static let progressRingTrackOpacity: Double = 0.1
+
+        /// Avatar size inside progress ring
+        static let avatarSize: CGFloat = 240
+
+        /// Progress ring total size (avatar + ring padding)
+        static let ringSize: CGFloat = 280
 
         /// Checkmark icon size on success
-        static let successIconSize: CGFloat = 120
+        static let successIconSize: CGFloat = 80
+
+        /// Countdown font size
+        static let countdownFontSize: CGFloat = 72
+
+        /// Status pill icon size
+        static let statusIconSize: CGFloat = 20
+
+        /// Status pill font size
+        static let statusFontSize: CGFloat = 15
     }
 
     // MARK: - Onboarding
