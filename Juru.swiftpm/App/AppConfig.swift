@@ -268,9 +268,59 @@ enum AppConfig {
         static let neutralSampleCount: Int = 20
 
         /// Progress ring stroke width
-        static let progressRingStrokeWidth: CGFloat = 24
+        static let progressRingStrokeWidth: CGFloat = 12
+
+        /// Progress ring track opacity
+        static let progressRingTrackOpacity: Double = 0.1
+
+        /// Avatar size inside progress ring
+        static let avatarSize: CGFloat = 240
+
+        /// Progress ring total size (avatar + ring padding)
+        static let ringSize: CGFloat = 280
 
         /// Checkmark icon size on success
-        static let successIconSize: CGFloat = 120
+        static let successIconSize: CGFloat = 80
+
+        /// Countdown font size
+        static let countdownFontSize: CGFloat = 72
+
+        /// Status pill icon size
+        static let statusIconSize: CGFloat = 20
+
+        /// Status pill font size
+        static let statusFontSize: CGFloat = 15
+    }
+
+    // MARK: - Onboarding
+
+    /// Configuration specific to the onboarding flow.
+    enum Onboarding {
+        /// Auto-advance timer duration per page (seconds)
+        static let autoAdvanceDuration: Double = 15.0
+
+        /// Segmented progress bar height
+        static let progressBarHeight: CGFloat = 3.0
+
+        /// Apple-style button corner radius
+        static let buttonCornerRadius: CGFloat = 14.0
+
+        /// Button height
+        static let buttonHeight: CGFloat = 50.0
+
+        /// Maximum button width
+        static let maxButtonWidth: CGFloat = 360.0
+
+        /// Maximum text content width
+        static let maxContentWidth: CGFloat = 500.0
+
+        /// Title font size
+        static let titleFontSize: CGFloat = 34.0
+
+        /// Subtitle font size
+        static let subtitleFontSize: CGFloat = 17.0
+
+        /// Countdown badge size
+        static let countdownBadgeSize: CGFloat = 32.0
     }
 }
