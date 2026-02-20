@@ -43,25 +43,7 @@ enum AppConfig {
         /// Delay before enabling user turn after demo
         static let demoToUserTurnDelay: Double = 3.0
 
-        // MARK: Tutorial Phase Timing
-
-        /// Standard intro phase duration before auto-advancing
-        static let tutorialIntroDelay: Double = 3.0
-
-        /// Extended intro phase duration for complex instructions
-        static let tutorialExtendedDelay: Double = 4.0
-
-        /// Short delay for quick transitions (typing completion, etc.)
-        static let tutorialQuickDelay: Double = 0.5
-
-        /// Delay after speaking action before advancing
-        static let tutorialSpeakingDelay: Double = 2.0
-
-        /// Delay before tutorial completion callback
-        static let tutorialCompletionDelay: Double = 4.0
-
-        /// Success feedback flash duration in tutorial
-        static let tutorialSuccessFeedback: Double = 0.6
+        // Tutorial timing constants moved to AppConfig.Tutorial
     }
 
     // MARK: - Gesture Thresholds
@@ -164,6 +146,24 @@ enum AppConfig {
 
         /// Intensity gauge height
         static let intensityGaugeHeight: CGFloat = 60
+
+        /// Header bottom padding
+        static let headerBottomPadding: CGFloat = 10
+
+        /// Arrow indicator bottom padding in tutorial
+        static let arrowIndicatorBottomPadding: CGFloat = 4
+
+        /// Active color blur circle size in feedback center
+        static let activeColorBlurSize: CGFloat = 140
+
+        /// Avatar container shadow radius
+        static let avatarContainerShadowRadius: CGFloat = 15
+
+        /// Avatar container shadow Y offset
+        static let avatarContainerShadowY: CGFloat = 8
+
+        /// Speaking pulse animation delay multiplier
+        static let speakingPulseDelayStep: Double = 0.4
     }
 
     // MARK: - Padding Values
@@ -322,5 +322,84 @@ enum AppConfig {
 
         /// Countdown badge size
         static let countdownBadgeSize: CGFloat = 32.0
+    }
+
+    // MARK: - Tutorial
+
+    /// Configuration specific to the tutorial flow.
+    enum Tutorial {
+        /// Duration of "Show" demo phases before auto-advancing to "Do" (seconds)
+        static let showDemoDuration: Double = 5.0
+
+        /// Standard intro phase auto-advance delay (seconds)
+        static let introDelay: Double = 3.0
+
+        /// Extended intro delay for complex instructions (seconds)
+        static let extendedDelay: Double = 4.0
+
+        /// Quick transition delay after typing/selection completion (seconds)
+        static let quickDelay: Double = 0.5
+
+        /// Delay after speaking action before advancing (seconds)
+        static let speakingDelay: Double = 2.0
+
+        /// Delay before tutorial completion callback (seconds)
+        static let completionDelay: Double = 4.0
+
+        /// Success feedback flash duration (seconds)
+        static let successFeedback: Double = 0.6
+
+        /// Instruction card maximum width
+        static let cardMaxWidth: CGFloat = 520.0
+
+        /// Instruction card corner radius
+        static let cardCornerRadius: CGFloat = 20.0
+
+        /// Title font size (matching Apple-like pattern)
+        static let titleFontSize: CGFloat = 28.0
+
+        /// Subtitle font size
+        static let subtitleFontSize: CGFloat = 17.0
+
+        /// Demo scene height inside instruction card
+        static let demoHeight: CGFloat = 200.0
+
+        /// Demo scene scale factor
+        static let demoScale: CGFloat = 0.85
+
+        /// Cheat sheet bottom padding
+        static let cheatSheetBottomPadding: CGFloat = 16.0
+
+        /// Focus highlight pulse animation duration
+        static let focusPulseDuration: Double = 1.2
+
+        /// Arrow indicator bounce offset
+        static let arrowBounceOffset: CGFloat = 6.0
+
+        /// Action pill shadow radius
+        static let actionPillShadowRadius: CGFloat = 5.0
+
+        /// Action pill shadow Y offset
+        static let actionPillShadowY: CGFloat = 2.0
+
+        /// iPad instruction card column width (leading side)
+        static let iPadCardColumnWidth: CGFloat = 380.0
+    }
+
+    // MARK: - Progress Ring (MainTypingView)
+
+    /// Configuration for the pucker progress ring in MainTypingView.
+    enum ProgressRing {
+        /// Stroke width for the ring
+        static let strokeWidth: CGFloat = 8
+
+        /// Icon badge size inside ring
+        static let iconBadgeSize: CGFloat = 40
+
+        /// Icon font size inside badge
+        static let iconFontSize: CGFloat = 20
+
+        /// Icon badge offset from center (negative Y = upward)
+        static let iconOffsetY: CGFloat = -90
     }
 }

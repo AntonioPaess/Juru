@@ -105,6 +105,12 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     override init() {
         super.init()
         loadCalibration()
+
+        #if DEBUG
+        // In debug mode, suppress "face not detected" overlay initially
+        lastFaceDetectedTime = Date()
+        isFaceCurrentlyTracked = true
+        #endif
     }
     
     /// Starts the ARKit face tracking session with camera permission handling.
@@ -289,4 +295,53 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     }
     
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {}
+
+    // MARK: - Simulator Debug Helpers
+
+    #if DEBUG
+    /// Simulates a brow raise toggle (navigation) for testing without camera.
+    func simulateNavigate() {
+        lastFaceDetectedTime = Date()
+        isFaceCurrentlyTracked = true
+        currentFocusState = (currentFocusState == 1) ? 2 : 1
+        let gen = UIImpactFeedbackGenerator(style: .light)
+        gen.impactOccurred()
+    }
+
+    /// Simulates a short pucker hold → release (select action) for testing without camera.
+    func simulateSelect() {
+        lastFaceDetectedTime = Date()
+        isFaceCurrentlyTracked = true
+        puckerState = .readyToSelect
+        interactionProgress = 1.0
+        currentValues[.pucker] = 0.8
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.15))
+            self.executeActionBasedOnState()
+            self.currentValues[.pucker] = 0.0
+            try? await Task.sleep(for: .seconds(0.3))
+            self.puckerState = .idle
+            self.interactionProgress = 0.0
+        }
+    }
+
+    /// Simulates a long pucker hold → release (undo/back action) for testing without camera.
+    func simulateUndo() {
+        lastFaceDetectedTime = Date()
+        isFaceCurrentlyTracked = true
+        puckerState = .readyToBack
+        interactionProgress = 1.0
+        currentValues[.pucker] = 0.8
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.15))
+            self.executeActionBasedOnState()
+            self.currentValues[.pucker] = 0.0
+            try? await Task.sleep(for: .seconds(0.3))
+            self.puckerState = .idle
+            self.interactionProgress = 0.0
+        }
+    }
+    #endif
 }
