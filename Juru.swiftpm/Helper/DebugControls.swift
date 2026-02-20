@@ -5,20 +5,23 @@
 //  Debug overlay for testing the app on Simulator (no TrueDepth camera).
 //  Provides on-screen buttons to simulate facial gestures and skip app states.
 //
-//  Usage: Set `DebugConfig.isEnabled = true` in MyApp.swift to activate.
-//  IMPORTANT: Must be disabled before submission.
+//  Automatically enabled on Simulator via #targetEnvironment(simulator).
+//  Always disabled on real device — no manual toggle needed.
 //
 
 #if DEBUG
 import SwiftUI
 
-/// Global debug configuration. Set `isEnabled = true` to show debug controls.
+/// Global debug configuration. Automatically enabled only on Simulator.
 enum DebugConfig {
-    /// Master toggle for debug overlay. Set to `false` before submission.
+    /// Enabled automatically when running on Simulator; always false on real device.
+    #if targetEnvironment(simulator)
     static let isEnabled = true
-
-    /// Which app state to start in. Set to `nil` for normal flow.
     static let startState: DebugStartState? = .tutorial
+    #else
+    static let isEnabled = false
+    static let startState: DebugStartState? = nil
+    #endif
 
     enum DebugStartState {
         case calibration
