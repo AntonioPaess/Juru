@@ -30,6 +30,7 @@ struct MainTypingView: View {
 
     var tutorialFocus: TutorialFocus = .none
     var isTutorialActive: Bool
+    var tutorialAllowsUndo: Bool = true
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.horizontalSizeClass) var sizeClass
@@ -232,6 +233,11 @@ struct MainTypingView: View {
 
         checkFaceTracking()
 
+        // Block undo during guided tutorial phases: consume the flag so update() never sees it
+        if isTutorialActive && !tutorialAllowsUndo && faceManager.isBackingOut {
+            return
+        }
+
         var allowAction = false
 
         if !isTutorialActive {
@@ -245,10 +251,10 @@ struct MainTypingView: View {
             case .none, .suggestions, .speak:
                 allowAction = false
             }
-        }
 
-        if faceManager.isBackingOut {
-            allowAction = true
+            if faceManager.isBackingOut && tutorialAllowsUndo {
+                allowAction = true
+            }
         }
 
         if allowAction {
@@ -257,6 +263,10 @@ struct MainTypingView: View {
     }
 
     private func checkFaceTracking() {
+        #if DEBUG
+        if DebugConfig.isEnabled { return }
+        #endif
+
         let now = Date()
         guard now.timeIntervalSince(lastFaceCheckTime) >= AppConfig.Timing.faceCheckInterval else { return }
         lastFaceCheckTime = now

@@ -1,154 +1,186 @@
-////
-////  DebugControls.swift
-////  Juru
-////
-////  Created by Juru Debugger.
-////
 //
-//import SwiftUI
+//  DebugControls.swift
+//  Juru
 //
-//struct DebugControls: View {
-//    @Bindable var faceManager: FaceTrackingManager
-//    @Binding var isVisible: Bool
-//    
-//    var body: some View {
-//        VStack(spacing: 20) {
-//            // Header
-//            HStack {
-//                Text("Debug Studio")
-//                    .font(.headline)
-//                    .foregroundStyle(.white)
-//                Spacer()
-//                Button { isVisible = false } label: {
-//                    Image(systemName: "xmark.circle.fill")
-//                        .foregroundStyle(.white.opacity(0.6))
-//                        .font(.title2)
-//                }
-//            }
-//            .padding(.bottom, 10)
-//            
-//            // --- BROW CONTROL (NAVEGAÇÃO) ---
-//            VStack(alignment: .leading, spacing: 5) {
-//                HStack {
-//                    Text("Brow Up (Nav)")
-//                        .font(.caption.bold())
-//                        .foregroundStyle(Color.juruTeal)
-//                    Spacer()
-//                    Text(String(format: "%.2f", faceManager.browUp))
-//                        .font(.caption.monospaced())
-//                        .foregroundStyle(.white.opacity(0.8))
-//                }
-//                
-//                Slider(
-//                    value: Binding(
-//                        get: { faceManager.browUp },
-//                        set: { val in
-//                            // Simula a injeção de valor no dicionário de valores atuais
-//                            faceManager.currentValues[.browUp] = val
-//                            // Força a atualização da lógica chamando o update manual se necessário
-//                            // Nota: No código real, o update é chamado pelo ARKit.
-//                            // Aqui estamos apenas atualizando o valor para visualização ou teste básico.
-//                            // Para simular comportamento real, teríamos que chamar a lógica de trigger.
-//                            simulateLogic()
-//                        }
-//                    ),
-//                    in: 0...1.0
-//                )
-//                .tint(Color.juruTeal)
-//            }
-//            
-//            // --- PUCKER CONTROL (AÇÃO) ---
-//            VStack(alignment: .leading, spacing: 5) {
-//                HStack {
-//                    Text("Pucker (Select/Back)")
-//                        .font(.caption.bold())
-//                        .foregroundStyle(Color.juruCoral)
-//                    Spacer()
-//                    Text(String(format: "%.2f", faceManager.mouthPucker))
-//                        .font(.caption.monospaced())
-//                        .foregroundStyle(.white.opacity(0.8))
-//                }
-//                
-//                Slider(
-//                    value: Binding(
-//                        get: { faceManager.mouthPucker },
-//                        set: { val in
-//                            faceManager.currentValues[.pucker] = val
-//                            simulateLogic()
-//                        }
-//                    ),
-//                    in: 0...1.0
-//                )
-//                .tint(Color.juruCoral)
-//            }
-//            
-//            Divider().background(Color.white.opacity(0.2))
-//            
-//            // --- ESTADOS INTERNOS ---
-//            HStack(spacing: 15) {
-//                StateIndicator(label: "LEFT", isActive: faceManager.isTriggeringLeft, color: .juruTeal)
-//                StateIndicator(label: "RIGHT", isActive: faceManager.isTriggeringRight, color: .juruCoral)
-//                StateIndicator(label: "BACK", isActive: faceManager.isTriggeringBack, color: .red)
-//            }
-//            
-//            // --- LONG PRESS PROGRESS ---
-//            if faceManager.longPressProgress > 0 {
-//                VStack(spacing: 4) {
-//                    Text("Long Press: \(Int(faceManager.longPressProgress * 100))%")
-//                        .font(.caption2)
-//                        .foregroundStyle(.white.opacity(0.6))
-//                    
-//                    ProgressView(value: faceManager.longPressProgress)
-//                        .progressViewStyle(LinearProgressViewStyle(tint: .red))
-//                }
-//            }
-//        }
-//        .padding(20)
-//        .background(Color.black.opacity(0.85))
-//        .clipShape(RoundedRectangle(cornerRadius: 20))
-//        .overlay(
-//            RoundedRectangle(cornerRadius: 20)
-//                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-//        )
-//        .padding()
-//    }
-//    
-//    // Simula a lógica que normalmente estaria dentro do delegate do ARSession
-//    // Isso permite testar a máquina de estados sem câmera
-//    private func simulateLogic() {
-//        Task { @MainActor in
-//            // Copia da lógica de Trigger do FaceTrackingManager para simulação
-//            _ = faceManager.browUp
-//            let puckerVal = faceManager.mouthPucker
-//            
-//            // Navegação (Brow)
-//            // Precisamos acessar as configs internas ou hardcodar para debug
-//            let browThreshold = 0.4
-//            
-//            // A lógica original usa histerese com isBrowRelaxed
-//            // Como variáveis privadas não são acessíveis facilmente aqui sem mudar o Manager,
-//            // este DebugControls serve mais para VISUALIZAR e injetar valores brutos.
-//            // Para um teste perfeito, o FaceTrackingManager deveria ter um método `processUpdate(brow:pucker:)`
-//            // público que tanto o ARKit quanto este Debug chamam.
-//            
-//            // Mas para fins visuais de UI (SwiftUI Previews), setar os valores diretos já ajuda.
-//        }
-//    }
-//}
+//  Debug overlay for testing the app on Simulator (no TrueDepth camera).
+//  Provides on-screen buttons to simulate facial gestures and skip app states.
 //
-//struct StateIndicator: View {
-//    let label: String
-//    let isActive: Bool
-//    let color: Color
-//    
-//    var body: some View {
-//        Text(label)
-//            .font(.caption.bold())
-//            .padding(.horizontal, 8)
-//            .padding(.vertical, 4)
-//            .background(isActive ? color : Color.white.opacity(0.1))
-//            .foregroundStyle(isActive ? .white : .white.opacity(0.4))
-//            .clipShape(Capsule())
-//            .animation(.easeInOut, value: isActive)
-//    }
-//}
+//  Usage: Set `DebugConfig.isEnabled = true` in MyApp.swift to activate.
+//  IMPORTANT: Must be disabled before submission.
+//
+
+#if DEBUG
+import SwiftUI
+
+/// Global debug configuration. Set `isEnabled = true` to show debug controls.
+enum DebugConfig {
+    /// Master toggle for debug overlay. Set to `false` before submission.
+    static let isEnabled = true
+
+    /// Which app state to start in. Set to `nil` for normal flow.
+    static let startState: DebugStartState? = .tutorial
+
+    enum DebugStartState {
+        case calibration
+        case tutorial
+        case mainApp
+    }
+}
+
+/// Floating debug control panel for simulating facial gestures on Simulator.
+struct SimulatorDebugOverlay: View {
+    var faceManager: FaceTrackingManager
+    @State private var isCollapsed = true
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                if isCollapsed {
+                    collapsedButton
+                } else {
+                    expandedPanel
+                }
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 80)
+        }
+        .allowsHitTesting(true)
+    }
+
+    // MARK: - Collapsed
+
+    var collapsedButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3)) { isCollapsed = false }
+        } label: {
+            Image(systemName: "ladybug.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(Color.orange.opacity(0.9))
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+        }
+    }
+
+    // MARK: - Expanded
+
+    var expandedPanel: some View {
+        VStack(spacing: 12) {
+            // Header
+            HStack {
+                Image(systemName: "ladybug.fill")
+                    .font(.system(size: 14))
+                Text("Debug")
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                Spacer()
+                Button {
+                    withAnimation(.spring(response: 0.3)) { isCollapsed = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+            }
+            .foregroundStyle(.white)
+
+            Divider().background(Color.white.opacity(0.2))
+
+            // State info
+            HStack(spacing: 8) {
+                statePill("Focus: \(faceManager.currentFocusState == 1 ? "L" : "R")",
+                         color: faceManager.currentFocusState == 1 ? .juruTeal : .juruCoral)
+                statePill(puckerStateText, color: puckerStateColor)
+            }
+
+            // Action buttons
+            HStack(spacing: 10) {
+                debugButton(
+                    icon: "eyebrow",
+                    label: "Nav",
+                    color: .juruTeal
+                ) {
+                    faceManager.simulateNavigate()
+                }
+
+                debugButton(
+                    icon: "mouth.fill",
+                    label: "Select",
+                    color: .juruTeal
+                ) {
+                    faceManager.simulateSelect()
+                }
+
+                debugButton(
+                    icon: "arrow.uturn.backward",
+                    label: "Undo",
+                    color: .red
+                ) {
+                    faceManager.simulateUndo()
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 220)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.orange.opacity(0.4), lineWidth: 1)
+        )
+        .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
+    }
+
+    // MARK: - Sub-components
+
+    func debugButton(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(color.opacity(0.8), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    func statePill(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold, design: .monospaced))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.6), in: Capsule())
+    }
+
+    var puckerStateText: String {
+        switch faceManager.puckerState {
+        case .idle: return "Idle"
+        case .charging: return "Charging"
+        case .readyToSelect: return "Select!"
+        case .readyToBack: return "Back!"
+        case .cooldown: return "Cooldown"
+        }
+    }
+
+    var puckerStateColor: Color {
+        switch faceManager.puckerState {
+        case .idle: return .gray
+        case .charging: return .yellow
+        case .readyToSelect: return .green
+        case .readyToBack: return .red
+        case .cooldown: return .blue
+        }
+    }
+}
+#endif

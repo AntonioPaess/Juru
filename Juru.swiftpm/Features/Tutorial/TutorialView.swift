@@ -13,21 +13,17 @@ struct TutorialView: View {
     var onTutorialComplete: () -> Void
 
     @Binding var currentFocus: TutorialFocus
+    @Binding var allowsUndo: Bool
 
     // MARK: - Story Phases
 
     enum StoryPhase: Equatable {
         case intro
 
-        // --- 1. SHOW → DO MECHANICS ---
-        case show_Navigate
-        case do_Navigate
-
-        case show_Select
-        case do_Select
-
-        case show_Undo
-        case do_Undo
+        // --- 1. LEARN MECHANICS (Watch + Do simultaneously) ---
+        case learn_Navigate
+        case learn_Select
+        case learn_Undo
 
         // --- 2. TYPE "H" ---
         case type_Intro
@@ -43,12 +39,7 @@ struct TutorialView: View {
         case predict_Intro
         case predict_FocusRight
         case predict_OpenMenu
-        case predict_FocusL1
-        case predict_SelectL1
-        case predict_FocusL2
-        case predict_SelectL2
-        case predict_FocusFinal
-        case predict_SelectHelp
+        case predict_FindHelp
 
         // --- 4. SPEAK & CLEAR ---
         case speak_Intro
@@ -62,18 +53,10 @@ struct TutorialView: View {
 
         case completed
 
-        /// Whether this phase shows a gesture demo animation.
-        var isShowPhase: Bool {
+        /// Whether this phase shows a gesture demo animation alongside user action.
+        var isLearnPhase: Bool {
             switch self {
-            case .show_Navigate, .show_Select, .show_Undo: return true
-            default: return false
-            }
-        }
-
-        /// Whether this phase is a "Do" phase where the user performs a gesture.
-        var isDoPhase: Bool {
-            switch self {
-            case .do_Navigate, .do_Select, .do_Undo: return true
+            case .learn_Navigate, .learn_Select, .learn_Undo: return true
             default: return false
             }
         }
@@ -87,12 +70,21 @@ struct TutorialView: View {
             }
         }
 
-        /// The gesture type for Show/Do phases.
+        /// Whether undo is allowed in this phase.
+        /// Only allowed in learn_Undo (where undo is taught) — blocked during guided phases.
+        var allowsUndo: Bool {
+            switch self {
+            case .learn_Undo: return true
+            default: return false
+            }
+        }
+
+        /// The gesture type for learn phases.
         var gestureType: GestureDemoScene.GestureType? {
             switch self {
-            case .show_Navigate, .do_Navigate: return .navigation
-            case .show_Select, .do_Select: return .select
-            case .show_Undo, .do_Undo: return .undo
+            case .learn_Navigate: return .navigation
+            case .learn_Select: return .select
+            case .learn_Undo: return .undo
             default: return nil
             }
         }
@@ -114,15 +106,14 @@ struct TutorialView: View {
         var section: Int {
             switch self {
             case .intro: return 0
-            case .show_Navigate, .do_Navigate: return 1
-            case .show_Select, .do_Select: return 2
-            case .show_Undo, .do_Undo: return 3
+            case .learn_Navigate: return 1
+            case .learn_Select: return 2
+            case .learn_Undo: return 3
             case .type_Intro, .type_FocusLeft, .type_OpenLetters,
                  .type_SelectAM, .type_SelectHM, .type_SelectHJ,
                  .type_SelectHI, .type_SelectH: return 4
             case .predict_Intro, .predict_FocusRight, .predict_OpenMenu,
-                 .predict_FocusL1, .predict_SelectL1, .predict_FocusL2,
-                 .predict_SelectL2, .predict_FocusFinal, .predict_SelectHelp: return 5
+                 .predict_FindHelp: return 5
             case .speak_Intro, .speak_OpenMenu, .speak_SelectAction: return 6
             case .clear_Intro, .clear_FocusRight, .clear_OpenMenu,
                  .clear_SelectAction: return 7
@@ -189,19 +180,28 @@ struct TutorialView: View {
 
     @ViewBuilder
     var tutorialContent: some View {
-        VStack {
-            if isPad {
-                instructionCard
-                    .padding(.top, AppConfig.Padding.xxl)
+        if isPad {
+            // iPad: card positioned on the leading side to avoid covering the avatar/feedback center
+            HStack {
                 Spacer()
-            } else {
+                VStack {
+                    instructionCard
+                        .padding(.top, AppConfig.Padding.xxl)
+                    Spacer()
+                }
+                .frame(maxWidth: AppConfig.Tutorial.iPadCardColumnWidth)
+            }
+            .padding(.trailing, AppConfig.Padding.xl)
+        } else {
+            // iPhone: card at the bottom
+            VStack {
                 Spacer()
                 instructionCard
                     .padding(.bottom, AppConfig.Padding.tutorialCardBottomIPhone)
             }
+            .padding(.horizontal, AppConfig.Padding.tutorialHorizontal(isPad: false))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.horizontal, AppConfig.Padding.tutorialHorizontal(isPad: isPad))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Instruction Card (Apple-like)
@@ -226,8 +226,8 @@ struct TutorialView: View {
                     .padding(.bottom, AppConfig.Padding.xs)
             }
 
-            // Show phase: embedded gesture demo
-            if phase.isShowPhase, let gestureType = phase.gestureType {
+            // Learn phase: demo animation + user performs gesture simultaneously
+            if phase.isLearnPhase, let gestureType = phase.gestureType {
                 GestureDemoScene(
                     gestureType: gestureType,
                     faceManager: faceManager,
@@ -237,22 +237,6 @@ struct TutorialView: View {
                 .frame(height: AppConfig.Tutorial.demoHeight)
                 .padding(.top, AppConfig.Padding.lg)
                 .padding(.bottom, AppConfig.Padding.sm)
-            }
-
-            // Do phase: animated gesture icon
-            if phase.isDoPhase {
-                Group {
-                    if phase == .do_Navigate {
-                        AnimatedBrowIcon(size: 48, color: .juruTeal)
-                    } else {
-                        AnimatedPuckerIcon(
-                            size: 48,
-                            color: phase == .do_Undo ? .juruCoral : .juruTeal
-                        )
-                    }
-                }
-                .padding(.top, AppConfig.Padding.lg)
-                .padding(.bottom, AppConfig.Padding.xs)
             }
 
             // Title + Subtitle
@@ -271,7 +255,7 @@ struct TutorialView: View {
                 }
             }
             .padding(.horizontal, AppConfig.Padding.xl)
-            .padding(.top, (phase.isShowPhase || phase.isDoPhase || phase.isIntroPhase)
+            .padding(.top, (phase.isLearnPhase || phase.isIntroPhase)
                      ? AppConfig.Padding.sm
                      : AppConfig.Padding.xl)
 
@@ -292,13 +276,6 @@ struct TutorialView: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
-            // "Watch the demo" hint for show phases
-            if phase.isShowPhase {
-                Text("Watch the animation above")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, AppConfig.Padding.sm)
-            }
         }
         .padding(.bottom, AppConfig.Padding.xl)
         .frame(maxWidth: AppConfig.Tutorial.cardMaxWidth)
@@ -336,6 +313,10 @@ struct TutorialView: View {
     // MARK: - Check Functions
 
     private func checkFaceTracking() {
+        #if DEBUG
+        if DebugConfig.isEnabled { return }
+        #endif
+
         let now = Date()
         guard now.timeIntervalSince(lastFaceCheckTime) >= AppConfig.Timing.faceCheckInterval else { return }
         lastFaceCheckTime = now
@@ -362,9 +343,9 @@ struct TutorialView: View {
     }
 
     func checkNavigation() {
-        if phase == .do_Navigate {
+        if phase == .learn_Navigate {
             if let startState = initialFocusState, faceManager.currentFocusState != startState {
-                advance(to: .show_Select)
+                advance(to: .learn_Select)
             }
         }
 
@@ -375,15 +356,6 @@ struct TutorialView: View {
         if phase == .predict_FocusRight && faceManager.currentFocusState == 2 {
             advance(to: .predict_OpenMenu)
         }
-        if phase == .predict_FocusL1 && faceManager.currentFocusState == 1 {
-            advance(to: .predict_SelectL1)
-        }
-        if phase == .predict_FocusL2 && faceManager.currentFocusState == 1 {
-            advance(to: .predict_SelectL2)
-        }
-        if phase == .predict_FocusFinal && faceManager.currentFocusState == 1 {
-            advance(to: .predict_SelectHelp)
-        }
 
         // Clear: navigate to the right menu first
         if phase == .clear_FocusRight && faceManager.currentFocusState == 2 {
@@ -392,13 +364,13 @@ struct TutorialView: View {
     }
 
     func checkPucker() {
-        if phase == .do_Select && faceManager.puckerState == .readyToSelect {
-            advance(to: .show_Undo)
+        if phase == .learn_Select && faceManager.puckerState == .readyToSelect {
+            advance(to: .learn_Undo)
         }
     }
 
     func checkUndo() {
-        if phase == .do_Undo && faceManager.isBackingOut {
+        if phase == .learn_Undo && faceManager.isBackingOut {
             advance(to: .type_Intro)
         }
     }
@@ -422,19 +394,12 @@ struct TutorialView: View {
         case .type_SelectHI:
             if left == "H" { advance(to: .type_SelectH) }
 
-        // Predict Help tree
+        // Predict Help tree: once menu is open, just let user navigate freely
         case .predict_OpenMenu:
             if left.localizedCaseInsensitiveContains("Help")
                 || left.localizedCaseInsensitiveContains("Hot")
                 || left.contains("Space") {
-                advance(to: .predict_FocusL1)
-            }
-        case .predict_SelectL1:
-            if right.contains("Space") { advance(to: .predict_FocusL2) }
-        case .predict_SelectL2:
-            if right.localizedCaseInsensitiveContains("Hot")
-                || left.localizedCaseInsensitiveContains("Help") {
-                advance(to: .predict_FocusFinal)
+                advance(to: .predict_FindHelp)
             }
 
         // Speak: open the right menu tree
@@ -481,8 +446,7 @@ struct TutorialView: View {
         // Skip-ahead: if Help already typed during prediction navigation
         if msg.localizedCaseInsensitiveContains("Help") {
             switch phase {
-            case .predict_FocusL1, .predict_SelectL1, .predict_FocusL2,
-                 .predict_SelectL2, .predict_FocusFinal, .predict_SelectHelp:
+            case .predict_FindHelp:
                 advance(to: .speak_Intro, delay: AppConfig.Tutorial.quickDelay)
                 return
             default: break
@@ -534,19 +498,19 @@ struct TutorialView: View {
             updateTexts()
         }
 
-        if p == .do_Navigate {
+        // Update undo permission based on current phase
+        allowsUndo = p.allowsUndo
+
+        if p == .learn_Navigate {
             initialFocusState = faceManager.currentFocusState
         }
 
         updateDynamicFocus(left: vocabManager.leftLabel, right: vocabManager.rightLabel)
 
-        // Auto-advance timers (cancellable)
+        // Auto-advance timers (cancellable) — only for intro/transition phases
         let autoDelay: Double? = {
             switch p {
             case .intro:          return AppConfig.Tutorial.introDelay
-            case .show_Navigate:  return AppConfig.Tutorial.showDemoDuration
-            case .show_Select:    return AppConfig.Tutorial.showDemoDuration
-            case .show_Undo:      return AppConfig.Tutorial.showDemoDuration
             case .type_Intro:     return AppConfig.Tutorial.introDelay
             case .predict_Intro:  return AppConfig.Tutorial.extendedDelay
             case .speak_Intro:    return AppConfig.Tutorial.introDelay
@@ -557,10 +521,7 @@ struct TutorialView: View {
 
         let nextPhase: StoryPhase? = {
             switch p {
-            case .intro:          return .show_Navigate
-            case .show_Navigate:  return .do_Navigate
-            case .show_Select:    return .do_Select
-            case .show_Undo:      return .do_Undo
+            case .intro:          return .learn_Navigate
             case .type_Intro:     return .type_FocusLeft
             case .predict_Intro:  return .predict_FocusRight
             case .speak_Intro:    return .speak_OpenMenu
@@ -611,34 +572,22 @@ struct TutorialView: View {
             subtitle = "Let's learn how to use Juru."
             currentFocus = .none
 
-        // Show → Do: Navigate
-        case .show_Navigate:
+        // Learn: Navigate (demo + user action)
+        case .learn_Navigate:
             title = "Navigation"
-            subtitle = "Raise your eyebrows to switch between menu options."
-            currentFocus = .none
-        case .do_Navigate:
-            title = "Your Turn"
-            subtitle = "Raise your eyebrows now to navigate."
+            subtitle = "Raise your eyebrows to switch sides. Try it now!"
             currentFocus = .none
 
-        // Show → Do: Select
-        case .show_Select:
+        // Learn: Select (demo + user action)
+        case .learn_Select:
             title = "Selection"
-            subtitle = "Pucker your lips and hold for 1 second to select."
-            currentFocus = .none
-        case .do_Select:
-            title = "Your Turn"
-            subtitle = "Pucker and hold until you see the green checkmark."
+            subtitle = "Pucker your lips and hold for 1 second. Try it now!"
             currentFocus = .none
 
-        // Show → Do: Undo
-        case .show_Undo:
+        // Learn: Undo (demo + user action)
+        case .learn_Undo:
             title = "Undo"
-            subtitle = "Hold your pucker longer (2 seconds) to go back."
-            currentFocus = .none
-        case .do_Undo:
-            title = "Your Turn"
-            subtitle = "Pucker and hold until it turns red, then release."
+            subtitle = "Hold your pucker longer (2 seconds) to go back. Try it now!"
             currentFocus = .none
 
         // Type H
@@ -688,29 +637,9 @@ struct TutorialView: View {
             title = "Open Predict"
             subtitle = "Hold Pucker to open the menu."
             currentFocus = .rightButton
-        case .predict_FocusL1:
-            title = "Suggestions"
-            subtitle = "Look LEFT to find 'Help'."
-            currentFocus = .leftButton
-        case .predict_SelectL1:
-            title = "Narrow Down"
-            subtitle = "Select to enter this group."
-            currentFocus = .leftButton
-        case .predict_FocusL2:
-            title = "Almost There"
-            subtitle = "Look LEFT again."
-            currentFocus = .leftButton
-        case .predict_SelectL2:
-            title = "Select Help"
-            subtitle = "Choose it on the Left."
-            currentFocus = .leftButton
-        case .predict_FocusFinal:
-            title = "Found It"
-            subtitle = "Look LEFT for 'Help'."
-            currentFocus = .leftButton
-        case .predict_SelectHelp:
-            title = "Confirm Help"
-            subtitle = "Hold Pucker to finish."
+        case .predict_FindHelp:
+            title = "Find \"Help\""
+            subtitle = "Navigate the suggestions and select 'Help'."
             currentFocus = .leftButton
 
         // Speak
@@ -757,32 +686,32 @@ struct TutorialView: View {
     var shouldShowAction: Bool {
         if isSuccessFeedback { return false }
         switch phase {
-        case .do_Navigate, .do_Select, .do_Undo: return true
+        case .learn_Navigate, .learn_Select, .learn_Undo: return true
         default: return currentFocus != .none
         }
     }
 
     var actionIcon: String {
         switch phase {
-        case .do_Navigate: return "eyebrow"
-        case .do_Select: return "mouth.fill"
-        case .do_Undo: return "clock.arrow.circlepath"
+        case .learn_Navigate: return "eyebrow"
+        case .learn_Select: return "mouth.fill"
+        case .learn_Undo: return "clock.arrow.circlepath"
         default: return "cursorarrow.click"
         }
     }
 
     var actionText: String {
         switch phase {
-        case .do_Navigate: return "Raise Brows"
-        case .do_Select: return "Pucker & Hold"
-        case .do_Undo: return "Long Pucker (Red)"
+        case .learn_Navigate: return "Raise Brows"
+        case .learn_Select: return "Pucker & Hold"
+        case .learn_Undo: return "Long Pucker (Red)"
         default: return "Select"
         }
     }
 
     var actionPillColor: Color {
         switch phase {
-        case .do_Undo: return .juruCoral
+        case .learn_Undo: return .juruCoral
         default: return .juruTeal
         }
     }

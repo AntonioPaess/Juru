@@ -381,6 +381,9 @@ enum AppConfig {
 
         /// Action pill shadow Y offset
         static let actionPillShadowY: CGFloat = 2.0
+
+        /// iPad instruction card column width (leading side)
+        static let iPadCardColumnWidth: CGFloat = 380.0
     }
 
     // MARK: - Progress Ring (MainTypingView)

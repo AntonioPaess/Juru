@@ -258,6 +258,10 @@ struct CalibrationView: View {
     // MARK: - Face Tracking Check
 
     private func checkFaceTracking(now: Date) {
+        #if DEBUG
+        if DebugConfig.isEnabled { return }
+        #endif
+
         guard currentStep != .done else {
             if !isFaceDetected { isFaceDetected = true }
             return
