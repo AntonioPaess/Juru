@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     var faceManager: FaceTrackingManager
@@ -25,75 +26,88 @@ struct RootView: View {
     @State private var isDebugExpanded = true
 
     var body: some View {
-        ZStack {
-            // CAMADA 0: ARView (Sempre ativa)
-            if !faceManager.isCameraDenied {
-                ARViewContainer(manager: faceManager)
-                    .ignoresSafeArea().accessibilityHidden(true).opacity(0.01).allowsHitTesting(false)
-            }
-            Color.juruBackground.ignoresSafeArea()
+        GeometryReader { geo in
+            let isPortrait = geo.size.height > geo.size.width
 
-            if let vocab = vocabularyManager {
-
-                // CAMADA 1: APP PRINCIPAL (PERSISTENTE)
-                // Ele existe desde o início, mas fica escondido ou visível conforme o estado
-                if currentState == .tutorial || currentState == .mainApp {
-                    MainTypingView(
-                        vocabManager: vocab,
-                        faceManager: faceManager,
-                        isPaused: false,
-                        tutorialFocus: tutorialFocus,
-                        isTutorialActive: currentState == .tutorial,
-                        tutorialAllowsUndo: tutorialAllowsUndo
-                    )
-                    // Transição suave apenas na primeira aparição
-                    .transition(.opacity)
+            ZStack {
+                // CAMADA 0: ARView (Sempre ativa)
+                if !faceManager.isCameraDenied {
+                    ARViewContainer(manager: faceManager)
+                        .ignoresSafeArea().accessibilityHidden(true).opacity(0.01).allowsHitTesting(false)
                 }
+                Color.juruBackground.ignoresSafeArea()
 
-                // CAMADA 2: OVERLAYS (Onboarding / Calibration / Tutorial UI)
-                Group {
-                    if currentState == .onboarding {
-                        OnboardingView(faceManager: faceManager) {
-                            withAnimation { currentState = .calibration }
-                        }
-                        .transition(.opacity)
-                    }
+                if let vocab = vocabularyManager {
 
-                    if currentState == .calibration {
-                        CalibrationView(
-                            faceManager: faceManager,
-                            onCalibrationComplete: {
-                                withAnimation { currentState = .tutorial }
-                            }
-                        )
-                        .transition(.opacity)
-                    }
-
-                    if currentState == .tutorial {
-                        TutorialView(
+                    // CAMADA 1: APP PRINCIPAL (PERSISTENTE)
+                    // Ele existe desde o início, mas fica escondido ou visível conforme o estado
+                    if currentState == .tutorial || currentState == .mainApp {
+                        MainTypingView(
                             vocabManager: vocab,
                             faceManager: faceManager,
-                            onTutorialComplete: {
-                                withAnimation(.easeOut(duration: 1.0)) {
-                                    currentState = .mainApp
-                                    tutorialFocus = .none
-                                    tutorialAllowsUndo = true
-                                }
-                            },
-                            currentFocus: $tutorialFocus,
-                            allowsUndo: $tutorialAllowsUndo
+                            isPaused: false,
+                            tutorialFocus: tutorialFocus,
+                            isTutorialActive: currentState == .tutorial,
+                            tutorialAllowsUndo: tutorialAllowsUndo
                         )
+                        // Transição suave apenas na primeira aparição
                         .transition(.opacity)
                     }
-                }
-            }
 
-            // CAMADA 3: Debug Overlay (Simulator only)
-            #if DEBUG
-            if DebugConfig.isEnabled {
-                SimulatorDebugOverlay(faceManager: faceManager)
+                    // CAMADA 2: OVERLAYS (Onboarding / Calibration / Tutorial UI)
+                    Group {
+                        if currentState == .onboarding {
+                            OnboardingView(faceManager: faceManager) {
+                                withAnimation { currentState = .calibration }
+                            }
+                            .transition(.opacity)
+                        }
+
+                        if currentState == .calibration {
+                            CalibrationView(
+                                faceManager: faceManager,
+                                onCalibrationComplete: {
+                                    withAnimation { currentState = .tutorial }
+                                }
+                            )
+                            .transition(.opacity)
+                        }
+
+                        if currentState == .tutorial {
+                            TutorialView(
+                                vocabManager: vocab,
+                                faceManager: faceManager,
+                                onTutorialComplete: {
+                                    withAnimation(.easeOut(duration: 1.0)) {
+                                        currentState = .mainApp
+                                        tutorialFocus = .none
+                                        tutorialAllowsUndo = true
+                                    }
+                                },
+                                currentFocus: $tutorialFocus,
+                                allowsUndo: $tutorialAllowsUndo
+                            )
+                            .transition(.opacity)
+                        }
+                    }
+                }
+
+                // CAMADA 3: Debug Overlay (Simulator only)
+                #if DEBUG
+                if DebugConfig.isEnabled {
+                    SimulatorDebugOverlay(faceManager: faceManager)
+                }
+                #endif
+
+                // CAMADA 4: Portrait lock (highest priority overlay)
+                PortraitLockOverlay(isPortrait: isPortrait)
             }
-            #endif
+        }
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
         }
         .task { await setupApp() }
     }

@@ -27,10 +27,8 @@ let package = Package(
                 .phone
             ],
             supportedInterfaceOrientations: [
-                .portrait,
                 .landscapeRight,
-                .landscapeLeft,
-                .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+                .landscapeLeft
             ],
             capabilities: [
                 .camera(purposeString: "Juru uses the TrueDepth camera to detect facial muscle movements for speech synthesis. All tracking is processed locally on your device."),
