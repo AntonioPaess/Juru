@@ -80,6 +80,9 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     var isTriggeringLeft: Bool { currentFocusState == 1 }
     var isTriggeringRight: Bool { currentFocusState == 2 }
     var isTriggeringBack: Bool { puckerState == .readyToBack }
+
+    /// Momentarily true when a brow navigation fires, for UI flash feedback.
+    var browFlashTrigger: Bool = false
     
     var mouthPucker: Double { getValue(for: .pucker) }
     var browUp: Double { getValue(for: .browUp) }
@@ -100,6 +103,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
     var isFaceCurrentlyTracked: Bool = false
 
     private var puckerStartTime: Date? = nil
+    private var cooldownStartTime: Date? = nil
     private var isBrowRelaxed = true
     
     override init() {
@@ -211,21 +215,37 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
             let puckerThresh = self.calibration.thresholds[.pucker] ?? GestureConfig.puckerThreshold
             
             // --- LÓGICA DE NAVEGAÇÃO ---
-            if self.puckerState != .cooldown {
+            // Mutual exclusion: brow navigation only when pucker is idle
+            if self.puckerState == .idle {
                 if correctedBrow > (browThresh * self.calibration.triggerFactor) {
                     if self.isBrowRelaxed {
                         self.currentFocusState = (self.currentFocusState == 1) ? 2 : 1
                         self.isBrowRelaxed = false
+
+                        // Flash trigger for instant visual feedback
+                        self.browFlashTrigger = true
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(AppConfig.Animation.browFlashResetDelay))
+                            self.browFlashTrigger = false
+                        }
+
                         let gen = UIImpactFeedbackGenerator(style: .light)
                         gen.impactOccurred()
                     }
                 } else {
                     self.isBrowRelaxed = true
                 }
+            } else {
+                // During active pucker, still track brow relaxation state
+                if correctedBrow <= (browThresh * self.calibration.triggerFactor) {
+                    self.isBrowRelaxed = true
+                }
             }
             
             // --- LÓGICA DE AÇÃO (MÁQUINA DE ESTADOS) ---
+            // Mutual exclusion: don't start pucker if brow just fired
             let isPuckering = correctedPucker > (puckerThresh * self.calibration.triggerFactor)
+                && !self.browFlashTrigger
             
             switch self.puckerState {
             case .idle:
@@ -265,10 +285,16 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
                 }
                 
             case .cooldown:
-                if correctedPucker < (puckerThresh * AppConfig.Thresholds.puckerHysteresis) {
+                let relaxed = correctedPucker < (puckerThresh * AppConfig.Thresholds.puckerHysteresis)
+                let timedOut = self.cooldownStartTime.map {
+                    Date().timeIntervalSince($0) >= AppConfig.Thresholds.cooldownTimeout
+                } ?? false
+
+                if relaxed || timedOut {
                     self.puckerState = .idle
                     self.interactionProgress = 0.0
                     self.puckerStartTime = nil
+                    self.cooldownStartTime = nil
                 }
             }
         }
@@ -291,6 +317,7 @@ class FaceTrackingManager: NSObject, ARSessionDelegate {
         default: break
         }
         self.puckerState = .cooldown
+        self.cooldownStartTime = Date()
         self.interactionProgress = 0.0
     }
     

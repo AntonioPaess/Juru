@@ -62,8 +62,13 @@ enum AppConfig {
         /// Minimum valid calibration value
         static let minCalibrationValue: Double = 0.1
 
-        /// Hysteresis factor for pucker release detection
-        static let puckerHysteresis: Double = 0.1
+        /// Hysteresis factor for pucker release detection (0.4 = user only needs to
+        /// relax to ~40% of threshold, more accessible for users with motor impairments)
+        static let puckerHysteresis: Double = 0.4
+
+        /// Maximum time (seconds) to stay in cooldown before auto-exiting to idle.
+        /// Safety net for users who have difficulty fully relaxing facial muscles.
+        static let cooldownTimeout: Double = 3.0
 
         /// Throttle interval for gesture state updates
         static let throttleInterval: Double = 0.05
@@ -258,6 +263,15 @@ enum AppConfig {
 
         /// Speaking pulse animation duration
         static let speakingPulse: Double = 1.5
+
+        /// Duration of the navigation flash effect on action cards
+        static let navigationFlashDuration: Double = 0.25
+
+        /// Delay before resetting browFlashTrigger
+        static let browFlashResetDelay: Double = 0.15
+
+        /// Duration of cooldown visual feedback pulse
+        static let cooldownFeedbackDuration: Double = 0.4
     }
 
     // MARK: - Calibration

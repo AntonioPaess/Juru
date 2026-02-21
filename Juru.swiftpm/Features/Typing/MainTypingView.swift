@@ -38,6 +38,8 @@ struct MainTypingView: View {
     @State private var isFaceDetected: Bool = true
     @State private var lastFaceCheckTime: Date = .distantPast
     @State private var focusPulse: Bool = false
+    @State private var showNavigationFlash: Bool = false
+    @State private var showCooldownPulse: Bool = false
 
     var isPad: Bool { sizeClass == .regular }
 
@@ -123,6 +125,7 @@ struct MainTypingView: View {
                     }
                     .padding(.vertical, AppConfig.Padding.lg)
                     .scaleEffect(isPad ? AppConfig.Scale.feedbackCenterIPad : 1.0)
+                    .scaleEffect(showCooldownPulse ? 1.08 : 1.0)
                     .opacity(shouldDim(.none) ? 0.5 : 1.0)
 
                     Spacer()
@@ -149,6 +152,7 @@ struct MainTypingView: View {
                                     isFocused: faceManager.currentFocusState == 1
                                 )
                             )
+                            .overlay(navigationFlashOverlay(isActive: faceManager.currentFocusState == 1))
                             .overlay(faceControlBadge, alignment: .topTrailing)
                             .scaleEffect(faceManager.currentFocusState == 1 ? 1.05 : 1.0)
                         }
@@ -173,6 +177,7 @@ struct MainTypingView: View {
                                     isFocused: faceManager.currentFocusState == 2
                                 )
                             )
+                            .overlay(navigationFlashOverlay(isActive: faceManager.currentFocusState == 2))
                             .overlay(faceControlBadge, alignment: .topTrailing)
                             .scaleEffect(faceManager.currentFocusState == 2 ? 1.05 : 1.0)
                         }
@@ -216,6 +221,33 @@ struct MainTypingView: View {
         }
         .onChange(of: isTutorialActive) { _, active in
             focusPulse = active
+        }
+        .onChange(of: faceManager.browFlashTrigger) { _, triggered in
+            if triggered {
+                withAnimation(.easeOut(duration: AppConfig.Animation.navigationFlashDuration)) {
+                    showNavigationFlash = true
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(AppConfig.Animation.navigationFlashDuration))
+                    withAnimation(.easeOut(duration: AppConfig.Animation.navigationFlashDuration)) {
+                        showNavigationFlash = false
+                    }
+                }
+            }
+        }
+        .onChange(of: faceManager.puckerState) { oldState, newState in
+            // Pulse when entering cooldown (action just executed)
+            if newState == .cooldown && (oldState == .readyToSelect || oldState == .readyToBack) {
+                withAnimation(.spring(response: AppConfig.Animation.quick, dampingFraction: 0.5)) {
+                    showCooldownPulse = true
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(AppConfig.Animation.cooldownFeedbackDuration))
+                    withAnimation(.spring(response: AppConfig.Animation.standard, dampingFraction: 0.7)) {
+                        showCooldownPulse = false
+                    }
+                }
+            }
         }
         .animation(
             .spring(
@@ -353,6 +385,19 @@ struct MainTypingView: View {
             .padding(.vertical, AppConfig.Layout.arrowIndicatorBottomPadding)
             .background(.ultraThinMaterial, in: Capsule())
             .padding(AppConfig.Padding.sm)
+        }
+    }
+
+    // MARK: - Feedback Overlays
+
+    /// Brief white border flash on the active action card when brow navigation fires.
+    @ViewBuilder
+    func navigationFlashOverlay(isActive: Bool) -> some View {
+        if showNavigationFlash && isActive {
+            RoundedRectangle(cornerRadius: AppConfig.CornerRadius.lg, style: .continuous)
+                .stroke(Color.white, lineWidth: 3)
+                .shadow(color: Color.white.opacity(0.6), radius: 12)
+                .transition(.opacity)
         }
     }
 }
